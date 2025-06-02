@@ -20,6 +20,7 @@ from tools import applications
 from tools import deployments  
 from tools import library
 from tools import topics
+from tools import workspaces
 
 # Initialize FastMCP server
 mcp = FastMCP("quix_portal")
@@ -27,9 +28,6 @@ mcp = FastMCP("quix_portal")
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Add predefined var for workspace
-os.environ['QUIX_WORKSPACE'] = os.environ.get('Quix__Workspace__Id')
 
 # =========================================
 # Application Tools
@@ -359,6 +357,175 @@ async def delete_topic(ctx: Context, topic_name: str) -> str:
     return await topics.delete_topic(ctx, topic_name)
 
 # =========================================
+# Workspace Tools
+# =========================================
+
+@mcp.tool()
+async def list_workspaces(ctx: Context) -> str:
+    """List all workspaces for the organization."""
+    return await workspaces.list_workspaces(ctx)
+
+@mcp.tool()
+async def get_workspace(ctx: Context, workspace_id: str) -> str:
+    """Get details of a specific workspace.
+    
+    Args:
+        workspace_id: The ID of the workspace to retrieve
+    """
+    return await workspaces.get_workspace(ctx, workspace_id)
+
+@mcp.tool()
+async def get_workspace_variables(ctx: Context, workspace_id: str) -> str:
+    """Get workspace variables.
+    
+    Args:
+        workspace_id: The workspace ID
+    """
+    return await workspaces.get_workspace_variables(ctx, workspace_id)
+
+@mcp.tool()
+async def set_workspace_variables(ctx: Context, workspace_id: str, variables: Dict[str, str]) -> str:
+    """Set workspace variables.
+    
+    Args:
+        workspace_id: The workspace ID
+        variables: Dictionary of variable key-value pairs to set
+    """
+    return await workspaces.set_workspace_variables(ctx, workspace_id, variables)
+
+@mcp.tool()
+async def get_workspace_yaml(ctx: Context, workspace_id: str, reference: Optional[str] = None) -> str:
+    """Get the workspace YAML descriptor.
+    
+    Args:
+        workspace_id: The workspace ID
+        reference: Optional git reference (defaults to HEAD)
+    """
+    return await workspaces.get_workspace_yaml(ctx, workspace_id, reference)
+
+@mcp.tool()
+async def update_workspace_yaml(ctx: Context, workspace_id: str, yaml_content: str, commit_message: Optional[str] = None) -> str:
+    """Update the workspace YAML descriptor.
+    
+    Args:
+        workspace_id: The workspace ID
+        yaml_content: The new YAML content
+        commit_message: Optional commit message
+    """
+    return await workspaces.update_workspace_yaml(ctx, workspace_id, yaml_content, commit_message)
+
+@mcp.tool()
+async def get_workspace_sync_status(ctx: Context, workspace_id: str) -> str:
+    """Get workspace sync status.
+    
+    Args:
+        workspace_id: The workspace ID
+    """
+    return await workspaces.get_workspace_sync_status(ctx, workspace_id)
+
+@mcp.tool()
+async def sync_workspace(ctx: Context, workspace_id: str, reference: Optional[str] = None, dry_run: bool = False, create_deployments_stopped: bool = False) -> str:
+    """Sync workspace with repository.
+    
+    Args:
+        workspace_id: The workspace ID
+        reference: Optional git reference (defaults to HEAD)
+        dry_run: If True, performs a dry run sync (default: False)
+        create_deployments_stopped: If True, creates deployments as stopped (default: False)
+    """
+    return await workspaces.sync_workspace(ctx, workspace_id, reference, dry_run, create_deployments_stopped)
+
+@mcp.tool()
+async def create_workspace_branch(ctx: Context, workspace_id: str, branch_name: str) -> str:
+    """Create a new branch in the workspace.
+    
+    Args:
+        workspace_id: The workspace ID
+        branch_name: Name of the branch to create
+    """
+    return await workspaces.create_workspace_branch(ctx, workspace_id, branch_name)
+
+@mcp.tool()
+async def switch_workspace_branch(ctx: Context, workspace_id: str, branch_name: str, protected: bool = False) -> str:
+    """Switch to a different branch in the workspace.
+    
+    Args:
+        workspace_id: The workspace ID
+        branch_name: Name of the branch to switch to
+        protected: Whether the branch is protected (default: False)
+    """
+    return await workspaces.switch_workspace_branch(ctx, workspace_id, branch_name, protected)
+
+@mcp.tool()
+async def create_workspace_tag(ctx: Context, workspace_id: str, tag_name: str, reference: Optional[str] = None) -> str:
+    """Create a new tag in the workspace.
+    
+    Args:
+        workspace_id: The workspace ID
+        tag_name: Name of the tag to create
+        reference: Optional git reference to tag (defaults to HEAD)
+    """
+    return await workspaces.create_workspace_tag(ctx, workspace_id, tag_name, reference)
+
+@mcp.tool()
+async def delete_workspace_tag(ctx: Context, workspace_id: str, tag_name: str) -> str:
+    """Delete a tag from the workspace.
+    
+    Args:
+        workspace_id: The workspace ID
+        tag_name: Name of the tag to delete
+    """
+    return await workspaces.delete_workspace_tag(ctx, workspace_id, tag_name)
+
+@mcp.tool()
+async def get_workspace_commits(ctx: Context, workspace_id: str, reference: Optional[str] = None, limit: Optional[int] = None) -> str:
+    """Get commits for the workspace.
+    
+    Args:
+        workspace_id: The workspace ID
+        reference: Optional git reference (defaults to HEAD)
+        limit: Optional limit on number of commits to retrieve
+    """
+    return await workspaces.get_workspace_commits(ctx, workspace_id, reference, limit)
+
+@mcp.tool()
+async def enable_workspace(ctx: Context, workspace_id: str) -> str:
+    """Enable a workspace.
+    
+    Args:
+        workspace_id: The workspace ID
+    """
+    return await workspaces.enable_workspace(ctx, workspace_id)
+
+@mcp.tool()
+async def disable_workspace(ctx: Context, workspace_id: str) -> str:
+    """Disable a workspace.
+    
+    Args:
+        workspace_id: The workspace ID
+    """
+    return await workspaces.disable_workspace(ctx, workspace_id)
+
+@mcp.tool()
+async def delete_workspace(ctx: Context, workspace_id: str) -> str:
+    """Delete a workspace.
+    
+    Args:
+        workspace_id: The workspace ID
+    """
+    return await workspaces.delete_workspace(ctx, workspace_id)
+
+@mcp.tool()
+async def rename_workspace(ctx: Context, workspace_id: str, new_name: str) -> str:
+    """Rename a workspace.
+    
+    Args:
+        workspace_id: The workspace ID
+        new_name: The new name for the workspace
+    """
+    return await workspaces.rename_workspace(ctx, workspace_id, new_name)
+
+# =========================================
 # Server Infrastructure
 # =========================================
 
@@ -397,14 +564,12 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Run Quix Portal MCP SSE-based server')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
-    parser.add_argument('--port', type=int, default=80, help='Port to listen on')
+    parser.add_argument('--port', type=int, default=8080, help='Port to listen on')
     parser.add_argument('--quix-token', help='Quix Personal Access Token (PAT)')
     parser.add_argument('--quix-base-url', help='Quix Portal Base URL (e.g., https://portal-myenv.platform.quix.io/)')
     parser.add_argument('--quix-workspace', help='Quix Workspace ID')
     parser.add_argument('--env-file', help='Path to .env file (default: .env in current directory)')
-    args, unknown = parser.parse_known_args()
-    if unknown:
-        logger.info(f"Ignoring unknown arguments: {unknown}")
+    args = parser.parse_args()
     
     # Load from specific env file if provided
     if args.env_file:
