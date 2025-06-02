@@ -397,7 +397,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Run Quix Portal MCP SSE-based server')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
-    parser.add_argument('--port', type=int, default=8080, help='Port to listen on')
+    parser.add_argument('--port', type=int, default=80, help='Port to listen on')
     parser.add_argument('--quix-token', help='Quix Personal Access Token (PAT)')
     parser.add_argument('--quix-base-url', help='Quix Portal Base URL (e.g., https://portal-myenv.platform.quix.io/)')
     parser.add_argument('--quix-workspace', help='Quix Workspace ID')
