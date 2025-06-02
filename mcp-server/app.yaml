@@ -1,5 +1,10 @@
 name: MCP server
 language: python
+variables:
+  - name: QUIX_TOKEN
+    inputType: FreeText
+    multiline: false
+    required: true
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py
