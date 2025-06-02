@@ -402,7 +402,9 @@ if __name__ == "__main__":
     parser.add_argument('--quix-base-url', help='Quix Portal Base URL (e.g., https://portal-myenv.platform.quix.io/)')
     parser.add_argument('--quix-workspace', help='Quix Workspace ID')
     parser.add_argument('--env-file', help='Path to .env file (default: .env in current directory)')
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    if unknown:
+        logger.info(f"Ignoring unknown arguments: {unknown}")
     
     # Load from specific env file if provided
     if args.env_file:
