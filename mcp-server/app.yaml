@@ -4,6 +4,7 @@ variables:
   - name: QUIX_TOKEN
     inputType: FreeText
     multiline: false
+    defaultValue: pat-f294cbafcd9a4609b2a58d04506c059a
     required: true
   - name: QUIX_BASE_URL
     inputType: FreeText
