@@ -1,6 +1,6 @@
 # Quix Portal MCP Server
 
-A Model Context Protocol (MCP) server that provides access to Quix Portal API operations for managing applications, deployments, library items, and Kafka topics.
+A Model Context Protocol (MCP) server that provides access to Quix Portal API operations for managing workspaces, applications, deployments, library items, and Kafka topics.
 
 ## Architecture
 
@@ -17,7 +17,8 @@ quix-portal-mcp/
 │   ├── applications.py          # Application management tools
 │   ├── deployments.py           # Deployment management tools
 │   ├── library.py               # Library item tools
-│   └── topics.py                # Kafka topic management tools
+│   ├── topics.py                # Kafka topic management tools
+│   └── workspaces.py            # Workspace management tools
 ├── test_imports.py              # Import validation test
 ├── requirements.txt             # Python dependencies
 └── README.md                    # This file
@@ -87,6 +88,26 @@ python3 server.py --host 0.0.0.0 --port 8080 --quix-token YOUR_TOKEN --quix-base
 - `--env-file`: Path to custom .env file
 
 ## Available Tools
+
+### Workspace Management
+
+- `list_workspaces` - List all workspaces for the organization
+- `get_workspace` - Get details of a specific workspace
+- `get_workspace_variables` - Get workspace environment variables
+- `set_workspace_variables` - Set workspace environment variables
+- `get_workspace_yaml` - Get the workspace descriptor YAML
+- `update_workspace_yaml` - Update the workspace descriptor YAML
+- `get_workspace_sync_status` - Check workspace sync status with repository
+- `sync_workspace` - Sync workspace with repository (supports dry-run)
+- `create_workspace_branch` - Create a new git branch in the workspace
+- `switch_workspace_branch` - Switch to a different git branch
+- `create_workspace_tag` - Create a new git tag
+- `delete_workspace_tag` - Delete a git tag
+- `get_workspace_commits` - Get commit history for the workspace
+- `enable_workspace` - Enable a workspace
+- `disable_workspace` - Disable a workspace
+- `delete_workspace` - Delete a workspace
+- `rename_workspace` - Rename a workspace
 
 ### Application Management
 
