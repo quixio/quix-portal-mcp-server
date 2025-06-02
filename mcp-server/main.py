@@ -528,6 +528,60 @@ async def rename_workspace(ctx: Context, workspace_id: str, new_name: str) -> st
     """
     return await workspaces.rename_workspace(ctx, workspace_id, new_name)
 
+@mcp.tool()
+async def create_workspace(ctx: Context, repository_id: str, environment_name: str, branch: str, 
+                          workspace_class_id: Optional[str] = None, storage_class_id: Optional[str] = None,
+                          broker_type: str = "SharedKafka", sync_topics: bool = True, 
+                          branch_protected: bool = False, cluster_id: Optional[str] = None,
+                          node_group_id: Optional[str] = None, broker_id: Optional[str] = None) -> str:
+    """Create a new workspace V2.
+    
+    Args:
+        repository_id: Repository ID for the workspace
+        environment_name: Name of the environment
+        branch: Git branch name for the workspace
+        workspace_class_id: Optional workspace class ID
+        storage_class_id: Optional storage class ID
+        broker_type: Broker type (default: SharedKafka)
+        sync_topics: Whether to sync existing topics in the broker (default: True)
+        branch_protected: Whether the branch is protected (default: False)
+        cluster_id: Optional cluster ID for deployments and IDEs
+        node_group_id: Optional node group ID within the cluster
+        broker_id: Optional broker configuration ID
+    """
+    return await workspaces.create_workspace(ctx, repository_id, environment_name, branch, 
+                                            workspace_class_id, storage_class_id, broker_type, 
+                                            sync_topics, branch_protected, cluster_id, 
+                                            node_group_id, broker_id)
+
+@mcp.tool()
+async def get_workspace_commit(ctx: Context, workspace_id: str, reference: str) -> str:
+    """Get the commit of a git reference.
+    
+    Args:
+        workspace_id: The workspace ID
+        reference: The git reference (commit hash, branch name, or tag)
+    """
+    return await workspaces.get_workspace_commit(ctx, workspace_id, reference)
+
+@mcp.tool()
+async def pull_workspace(ctx: Context, workspace_id: str) -> str:
+    """Pull the latest changes from the remote repository.
+    
+    Args:
+        workspace_id: The workspace ID
+    """
+    return await workspaces.pull_workspace(ctx, workspace_id)
+
+@mcp.tool()
+async def push_workspace(ctx: Context, workspace_id: str) -> str:
+    """Push the latest changes to the remote repository.
+    
+    Args:
+        workspace_id: The workspace ID
+    """
+    return await workspaces.push_workspace(ctx, workspace_id)
+
 # =========================================
 # Server Infrastructure
 # =========================================

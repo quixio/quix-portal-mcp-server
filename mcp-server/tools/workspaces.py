@@ -554,3 +554,148 @@ async def rename_workspace(ctx: Context, workspace_id: str, new_name: str) -> st
         
     except QuixApiError as e:
         return f"Error renaming workspace {workspace_id}: {str(e)}"
+
+async def create_workspace(ctx: Context, repository_id: str, environment_name: str, branch: str, 
+                          workspace_class_id: Optional[str] = None, storage_class_id: Optional[str] = None,
+                          broker_type: str = "SharedKafka", sync_topics: bool = True, 
+                          branch_protected: bool = False, cluster_id: Optional[str] = None,
+                          node_group_id: Optional[str] = None, broker_id: Optional[str] = None) -> str:
+    """Create a new workspace V2.
+    
+    Args:
+        repository_id: Repository ID for the workspace
+        environment_name: Name of the environment
+        branch: Git branch name for the workspace
+        workspace_class_id: Optional workspace class ID
+        storage_class_id: Optional storage class ID
+        broker_type: Broker type (default: SharedKafka)
+        sync_topics: Whether to sync existing topics in the broker (default: True)
+        branch_protected: Whether the branch is protected (default: False)
+        cluster_id: Optional cluster ID for deployments and IDEs
+        node_group_id: Optional node group ID within the cluster
+        broker_id: Optional broker configuration ID
+        
+    Returns:
+        Success message with workspace details or error
+    """
+    try:
+        workspace_request = {
+            "repositoryId": repository_id,
+            "environmentName": environment_name,
+            "branch": branch,
+            "branchProtected": branch_protected,
+            "brokerSettings": {
+                "brokerType": broker_type,
+                "syncTopics": sync_topics
+            }
+        }
+        
+        if workspace_class_id:
+            workspace_request["workspaceClassId"] = workspace_class_id
+        if storage_class_id:
+            workspace_request["storageClassId"] = storage_class_id
+        if cluster_id:
+            workspace_request["clusterId"] = cluster_id
+        if node_group_id:
+            workspace_request["nodeGroupId"] = node_group_id
+        if broker_id:
+            workspace_request["brokerId"] = broker_id
+            
+        workspace = await make_quix_request(
+            ctx,
+            "POST",
+            "workspaces",
+            json=workspace_request
+        )
+        
+        if not workspace:
+            return "Workspace creation initiated but no response received."
+        
+        result = f"Successfully created workspace:\n\n"
+        result += f"ID: {workspace.get('workspaceId', 'N/A')}\n"
+        result += f"Name: {workspace.get('name', 'N/A')}\n"
+        result += f"Status: {workspace.get('status', 'N/A')}\n"
+        result += f"Environment: {workspace.get('environmentName', 'N/A')}\n"
+        result += f"Branch: {workspace.get('branch', 'N/A')}\n"
+        result += f"Branch Protected: {workspace.get('branchProtected', False)}\n"
+        result += f"Broker Type: {workspace.get('brokerType', 'N/A')}\n"
+        result += f"Created: {workspace.get('createdAt', 'N/A')}\n"
+        
+        return result
+        
+    except QuixApiError as e:
+        return f"Error creating workspace: {str(e)}"
+
+async def get_workspace_commit(ctx: Context, workspace_id: str, reference: str) -> str:
+    """Get the commit of a git reference.
+    
+    Args:
+        workspace_id: The workspace ID
+        reference: The git reference (commit hash, branch name, or tag)
+        
+    Returns:
+        A formatted string with commit details
+    """
+    try:
+        commit = await make_quix_request(
+            ctx,
+            "GET",
+            f"workspaces/{workspace_id}/commits/{reference}"
+        )
+        
+        if not commit:
+            return f"No commit found for reference '{reference}' in workspace {workspace_id}."
+        
+        result = f"Commit Details:\n\n"
+        result += f"Reference: {commit.get('reference', 'N/A')}\n"
+        result += f"Message: {commit.get('message', 'N/A')}\n"
+        result += f"Author: {commit.get('authorName', 'N/A')} <{commit.get('authorEmail', 'N/A')}>\n"
+        result += f"Committer: {commit.get('committerName', 'N/A')}\n"
+        result += f"Created: {commit.get('createdAt', 'N/A')}\n"
+        
+        return result
+        
+    except QuixApiError as e:
+        return f"Error retrieving commit '{reference}' for workspace {workspace_id}: {str(e)}"
+
+async def pull_workspace(ctx: Context, workspace_id: str) -> str:
+    """Pull the latest changes from the remote repository.
+    
+    Args:
+        workspace_id: The workspace ID
+        
+    Returns:
+        Success message or error
+    """
+    try:
+        await make_quix_request(
+            ctx,
+            "POST",
+            f"workspaces/{workspace_id}/pull"
+        )
+        
+        return f"Successfully pulled latest changes from remote for workspace {workspace_id}."
+        
+    except QuixApiError as e:
+        return f"Error pulling changes for workspace {workspace_id}: {str(e)}"
+
+async def push_workspace(ctx: Context, workspace_id: str) -> str:
+    """Push the latest changes to the remote repository.
+    
+    Args:
+        workspace_id: The workspace ID
+        
+    Returns:
+        Success message or error
+    """
+    try:
+        await make_quix_request(
+            ctx,
+            "POST",
+            f"workspaces/{workspace_id}/push"
+        )
+        
+        return f"Successfully pushed latest changes to remote for workspace {workspace_id}."
+        
+    except QuixApiError as e:
+        return f"Error pushing changes for workspace {workspace_id}: {str(e)}"

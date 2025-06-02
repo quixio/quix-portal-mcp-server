@@ -93,6 +93,7 @@ python3 server.py --host 0.0.0.0 --port 8080 --quix-token YOUR_TOKEN --quix-base
 
 - `list_workspaces` - List all workspaces for the organization
 - `get_workspace` - Get details of a specific workspace
+- `create_workspace` - Create a new workspace V2
 - `get_workspace_variables` - Get workspace environment variables
 - `set_workspace_variables` - Set workspace environment variables
 - `get_workspace_yaml` - Get the workspace descriptor YAML
@@ -104,6 +105,9 @@ python3 server.py --host 0.0.0.0 --port 8080 --quix-token YOUR_TOKEN --quix-base
 - `create_workspace_tag` - Create a new git tag
 - `delete_workspace_tag` - Delete a git tag
 - `get_workspace_commits` - Get commit history for the workspace
+- `get_workspace_commit` - Get details of a specific git commit by reference
+- `pull_workspace` - Pull latest changes from remote repository
+- `push_workspace` - Push latest changes to remote repository
 - `enable_workspace` - Enable a workspace
 - `disable_workspace` - Disable a workspace
 - `delete_workspace` - Delete a workspace
