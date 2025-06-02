@@ -2,9 +2,9 @@ name: MCP server
 language: python
 variables:
   - name: QUIX_TOKEN
-    inputType: FreeText
+    inputType: Secret
     multiline: false
-    defaultValue: pat-f294cbafcd9a4609b2a58d04506c059a
+    defaultValue: API_PAT
     required: true
   - name: QUIX_BASE_URL
     inputType: FreeText
