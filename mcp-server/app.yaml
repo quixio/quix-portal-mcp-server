@@ -9,6 +9,7 @@ variables:
   - name: QUIX_BASE_URL
     inputType: FreeText
     multiline: false
+    defaultValue: https://portal-api.demo.quix.io/
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py
