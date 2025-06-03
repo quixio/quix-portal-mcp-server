@@ -26,3 +26,6 @@ deployments:
         inputType: FreeText
         value: https://portal-api.demo.quix.io/
 
+# This section describes the Topics of the data pipeline
+topics:
+  - name: csv-data
