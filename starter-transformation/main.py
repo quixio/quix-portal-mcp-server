@@ -30,15 +30,11 @@ def main():
         auto_offset_reset="earliest"
     )
     input_topic = app.topic(name=os.environ["input"])
-    output_topic = app.topic(name=os.environ["output"])
     sdf = app.dataframe(topic=input_topic)
 
     # Do StreamingDataFrame operations/transformations here
     sdf = sdf.apply(lambda row: row).filter(lambda row: True)
     sdf = sdf.print(metadata=True)
-
-    # Finish off by writing to the final result to the output topic
-    sdf.to_topic(output_topic)
 
     # With our pipeline defined, now run the Application
     app.run()
