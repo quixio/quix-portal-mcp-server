@@ -22,7 +22,7 @@ async def ask_runllm(message: str) -> str:
     """Ask RunLLM a question about Quix and get an AI-powered response.
     
     This tool connects to the RunLLM API, which is designed to answer questions
-    about Quix products and services. Response time is typically 1-5 seconds.
+    about Quix products and services. Response time is typically 1-5 seconds but can be up to 30 seconds.
     
     Args:
         message: The question or query to ask RunLLM about Quix
