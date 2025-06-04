@@ -49,6 +49,3 @@ deployments:
         required: true
         value: 111
 
-# This section describes the Topics of the data pipeline
-topics:
-  - name: csv-data
