@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Add predefined var for workspace
-os.environ['QUIX_WORKSPACE'] = os.environ.get('Quix__Workspace__Id')
+# os.environ['QUIX_WORKSPACE'] = os.environ.get('Quix__Workspace__Id')
 
 # =========================================
 # Application Tools
