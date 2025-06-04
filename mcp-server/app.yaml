@@ -13,7 +13,7 @@ variables:
   - name: QUIX_WORKSPACE
     inputType: FreeText
     multiline: false
-    defaultValue: demo-quixportalmcpserver-combinedmcp
+    defaultValue: demo-aiworkshopv2-test
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py
