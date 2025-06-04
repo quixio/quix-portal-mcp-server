@@ -1,11 +1,6 @@
 name: RunLLM MCP
 language: python
 variables:
-  - name: QUIX_TOKEN
-    inputType: Secret
-    multiline: false
-    defaultValue: API_PAT
-    required: true
   - name: QUIX_BASE_URL
     inputType: FreeText
     multiline: false
