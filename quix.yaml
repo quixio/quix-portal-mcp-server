@@ -56,7 +56,3 @@ topics:
     configuration:
       partitions: 3
       retentionInMinutes: 10080
-  - name: temperature-running-mean
-    configuration:
-      partitions: 3
-      retentionInMinutes: 10080
