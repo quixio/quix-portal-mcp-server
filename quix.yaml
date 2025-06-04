@@ -49,3 +49,7 @@ deployments:
 # This section describes the Topics of the data pipeline
 topics:
   - name: csv-data
+  - name: demo-data
+    configuration:
+      partitions: 3
+      retentionInMinutes: 10080
