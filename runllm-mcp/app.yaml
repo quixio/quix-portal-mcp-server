@@ -6,6 +6,11 @@ variables:
     multiline: false
     defaultValue: RUNLLM_API_KEY
     required: true
+  - name: RUNLLM_PIPELINE_ID
+    inputType: FreeText
+    multiline: false
+    defaultValue: 111
+    required: true
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py
