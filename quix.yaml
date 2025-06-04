@@ -6,7 +6,7 @@ metadata:
 
 # This section describes the Deployments of the data pipeline
 deployments:
-  - name: MCP server
+  - name: Quix Portal MCP server
     application: mcp-server
     version: latest
     deploymentType: Service
