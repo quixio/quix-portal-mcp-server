@@ -25,6 +25,9 @@ deployments:
       - name: QUIX_BASE_URL
         inputType: FreeText
         value: https://portal-api.demo.quix.io/
+      - name: QUIX_WORKSPACE
+        inputType: FreeText
+        value: demo-quixmcpserverplayground-dev
   - name: RunLLM MCP Server
     application: runllm-mcp
     version: latest
