@@ -1,5 +1,11 @@
 name: RunLLM MCP
 language: python
+variables:
+  - name: RUNLLM_API_KEY
+    inputType: Secret
+    multiline: false
+    defaultValue: RUNLLM_API_KEY
+    required: true
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py
