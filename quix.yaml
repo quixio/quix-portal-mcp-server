@@ -25,6 +25,26 @@ deployments:
       - name: QUIX_BASE_URL
         inputType: FreeText
         value: https://portal-api.demo.quix.io/
+  - name: RunLLM MCP Server
+    application: runllm-mcp
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 200
+      memory: 500
+      replicas: 1
+    publicAccess:
+      enabled: true
+      urlPrefix: runllmmcp-quixguru
+    variables:
+      - name: RUNLLM_API_KEY
+        inputType: Secret
+        required: true
+        secretKey: RUNLLM_API_KEY
+      - name: RUNLLM_PIPELINE_ID
+        inputType: FreeText
+        required: true
+        value: 111
 
 # This section describes the Topics of the data pipeline
 topics:
