@@ -47,5 +47,5 @@ deployments:
         value: https://portal-api.demo.quix.io/
       - name: QUIX_WORKSPACE
         inputType: FreeText
-        value: demo-aiworkshopv2-test
+        value: demo-quixmcpserverplayground-dev
 
