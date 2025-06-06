@@ -135,6 +135,23 @@ async def duplicate_application(
     """
     return await applications.duplicate_application(ctx, application_id, new_name, new_path)
 
+@mcp.tool()
+async def set_application_topics(
+    ctx: Context,
+    application_id: str,
+    input_topic: Optional[str] = None,
+    output_topic: Optional[str] = None
+) -> str:
+    """Set input and/or output topics for an application.
+    This is a simplified helper function specifically for setting topic connections.
+    
+    Args:
+        application_id: The ID of the application to update
+        input_topic: Name of the input topic (for transformation/sink apps)
+        output_topic: Name of the output topic (for source/transformation apps)
+    """
+    return await applications.set_application_topics(ctx, application_id, input_topic, output_topic)
+
 # =========================================
 # Deployment Tools
 # =========================================

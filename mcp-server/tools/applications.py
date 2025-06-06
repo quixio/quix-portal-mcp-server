@@ -223,7 +223,23 @@ async def update_application(
         dockerfile: Optional new Dockerfile for the application
         run_entry_point: Optional new run entry point for the application
         default_file: Optional new default file for the application
-        variables: Optional list of application variables following the ApplicationVariable schema
+        variables: Optional list of application variables following the ApplicationVariable schema.
+            IMPORTANT: To set topic values, use "defaultValue" field, NOT "value".
+            Example for setting input/output topics:
+            [
+                {
+                    "name": "input",
+                    "inputType": "InputTopic", 
+                    "required": false,
+                    "defaultValue": "my-input-topic"
+                },
+                {
+                    "name": "output",
+                    "inputType": "OutputTopic",
+                    "required": true,
+                    "defaultValue": "my-output-topic"
+                }
+            ]
         included_folders: Optional list of folders to include
     """
     try:
@@ -248,6 +264,10 @@ async def update_application(
             payload["defaultFile"] = default_file
             
         if variables:
+            # Validate variables and check for common mistakes
+            for var in variables:
+                if "value" in var and "defaultValue" not in var:
+                    return f"Error: Variable '{var.get('name')}' uses 'value' field. Use 'defaultValue' instead to set the variable value."
             payload["variables"] = variables
             
         if included_folders:
@@ -642,6 +662,94 @@ def create_application_variable(
         
     return variable
 
+async def set_application_topics(
+    ctx: Context,
+    application_id: str,
+    input_topic: Optional[str] = None,
+    output_topic: Optional[str] = None
+) -> str:
+    """Set input and/or output topics for an application.
+    This is a simplified helper function specifically for setting topic connections.
+    
+    Args:
+        application_id: The ID of the application to update
+        input_topic: Name of the input topic (for transformation/sink apps)
+        output_topic: Name of the output topic (for source/transformation apps)
+    """
+    try:
+        # Get the current application details
+        current_app = await make_quix_request(
+            ctx, 
+            "GET", 
+            "{workspaceId}/applications/{applicationId}".replace("{applicationId}", application_id)
+        )
+        
+        if not current_app:
+            return f"No application found with ID {application_id}."
+        
+        # Get existing variables
+        existing_variables = current_app.get('variables', [])
+        updated_variables = []
+        input_found = False
+        output_found = False
+        
+        # Update existing topic variables
+        for var in existing_variables:
+            var_name = var.get('name')
+            var_type = var.get('inputType')
+            
+            if var_name == 'input' and var_type in ['InputTopic', 'Topic'] and input_topic:
+                var['defaultValue'] = input_topic
+                input_found = True
+            elif var_name == 'output' and var_type in ['OutputTopic', 'Topic'] and output_topic:
+                var['defaultValue'] = output_topic
+                output_found = True
+                
+            updated_variables.append(var)
+        
+        # Add missing topic variables if needed
+        if input_topic and not input_found:
+            updated_variables.append({
+                "name": "input",
+                "inputType": "InputTopic",
+                "required": False,
+                "description": "Name of the input topic to listen to.",
+                "defaultValue": input_topic
+            })
+            
+        if output_topic and not output_found:
+            updated_variables.append({
+                "name": "output", 
+                "inputType": "OutputTopic",
+                "required": False,
+                "description": "Name of the output topic to write to.",
+                "defaultValue": output_topic
+            })
+        
+        # Update the application
+        payload = {"variables": updated_variables}
+        
+        application = await make_quix_request(
+            ctx, 
+            "PATCH", 
+            "{workspaceId}/applications/{applicationId}".replace("{applicationId}", application_id),
+            json=payload
+        )
+        
+        if not application:
+            return f"Failed to update topics for application {application_id}."
+        
+        result = f"Successfully updated topic connections for application '{application.get('name')}' (ID: {application_id}):\n"
+        
+        if input_topic:
+            result += f"• Input Topic: {input_topic}\n"
+        if output_topic:
+            result += f"• Output Topic: {output_topic}\n"
+            
+        return result
+    except QuixApiError as e:
+        return f"Error setting application topics: {str(e)}"
+
 async def update_application_variables(
     ctx: Context, 
     application_id: str, 
@@ -660,7 +768,7 @@ async def update_application_variables(
             Optional fields:
                 - multiline: Whether the variable value can be multiline (true/false)
                 - description: Description of the variable
-                - defaultValue: Default value for the variable
+                - defaultValue: Default value for the variable (IMPORTANT: Use "defaultValue", NOT "value")
         append: Whether to append these variables to existing ones (True) or replace them all (False).
             IMPORTANT: Due to API constraints, PATCH operations completely overwrite arrays.
             When append=True (default), we'll first fetch existing variables and combine them with new ones.
