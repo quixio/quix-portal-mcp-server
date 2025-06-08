@@ -47,5 +47,5 @@ deployments:
         value: https://portal-api.demo.quix.io/
       - name: QUIX_WORKSPACE
         inputType: FreeText
-        value: demo-quixmcpserverplayground-dev
+        value: demo-webinarsolarfarm-btestv2
 
