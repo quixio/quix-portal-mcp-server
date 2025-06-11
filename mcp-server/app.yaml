@@ -13,7 +13,7 @@ variables:
   - name: QUIX_WORKSPACE
     inputType: FreeText
     multiline: false
-    defaultValue: demo-webinarsolarfarm-btestv2
+    defaultValue: demo-webinarsolarfarm-btestv1
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py
