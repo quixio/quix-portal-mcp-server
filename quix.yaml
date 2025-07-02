@@ -48,4 +48,15 @@ deployments:
       - name: QUIX_WORKSPACE
         inputType: FreeText
         value: demo-webinarsolarfarm-btestv2
+  - name: AI Coding IDE - VS Code
+    application: ai-coding-ide-vs
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 200
+      memory: 500
+      replicas: 1
+    publicAccess:
+      enabled: true
+      urlPrefix: aicodingide-vscode-cdceeb8
 
