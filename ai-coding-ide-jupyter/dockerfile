@@ -1,28 +1,55 @@
-FROM python:3.12.5-slim-bookworm
-			
-# Set environment variables for non-interactive setup and unbuffered output
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONUNBUFFERED=1 \
-    PYTHONIOENCODING=UTF-8 \
-    PYTHONPATH="/app"
-			
-# Build argument for setting the main app path
-ARG MAINAPPPATH=.
-			
-# Set working directory inside the container
-WORKDIR /app
-			
-# Copy requirements to leverage Docker cache
-COPY "${MAINAPPPATH}/requirements.txt" "${MAINAPPPATH}/requirements.txt"
-			
-# Install dependencies without caching
-RUN pip install --no-cache-dir -r "${MAINAPPPATH}/requirements.txt"
-			
-# Copy entire application into container
-COPY . .
-			
-# Set working directory to main app path
-WORKDIR "/app/${MAINAPPPATH}"
-			
-# Define the container's startup command
-ENTRYPOINT ["python3", "main.py"]
+# ---------------------------------------------------------------------------
+# Base image – slim Python 3.11 keeps the footprint small
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim
+
+# ---------------------------------------------------------------------------
+# Environment – change these at build-time with `--build-arg` if allowed,
+# or override at run-time via platform-specific env-vars (if supported).
+# ---------------------------------------------------------------------------
+ARG JUPYTER_TOKEN=abcxyz
+ARG NOTEBOOK_DIR=/workspace
+ARG JUPYTER_PORT=80        # must be 80 so the service is externally reachable
+
+ENV JUPYTER_TOKEN=${JUPYTER_TOKEN} \
+    NOTEBOOK_DIR=${NOTEBOOK_DIR} \
+    JUPYTER_PORT=${JUPYTER_PORT}
+
+# ---------------------------------------------------------------------------
+# OS tools needed for a few wheels that still require compilation
+# ---------------------------------------------------------------------------
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential gcc \
+ && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# Install the exact package set recommended by the MCP-server docs
+# ---------------------------------------------------------------------------
+RUN pip install --no-cache-dir jupyterlab==4.4.1 \
+                         jupyter-collaboration==4.0.2 \
+                         ipykernel \
+ && pip uninstall -y pycrdt datalayer_pycrdt || true \
+ && pip install --no-cache-dir datalayer_pycrdt==0.12.17
+
+# ---------------------------------------------------------------------------
+# Expose port 80 so most schedulers automatically publish it
+# ---------------------------------------------------------------------------
+EXPOSE 80/tcp
+
+# ---------------------------------------------------------------------------
+# Put notebooks somewhere pleasant
+# ---------------------------------------------------------------------------
+WORKDIR ${NOTEBOOK_DIR}
+
+# ---------------------------------------------------------------------------
+# Default command – *no* external flags needed
+# ---------------------------------------------------------------------------
+# - binds to 0.0.0.0 so it’s reachable from outside the container
+# - uses --allow-root because we’re on port 80 (privileged) and default UID 0
+# ---------------------------------------------------------------------------
+CMD ["sh", "-c", "jupyter lab \
+      --port ${JUPYTER_PORT} \
+      --IdentityProvider.token ${JUPYTER_TOKEN} \
+      --ip 0.0.0.0 \
+      --no-browser \
+      --allow-root"]
