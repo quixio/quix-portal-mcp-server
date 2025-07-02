@@ -1,10 +1,6 @@
 name: AI Coding IDE - VS Code
 language: nodejs
 variables:
-  - name: input
-    inputType: InputTopic
-    description: This is the input topic to read data from
-    required: true
   - name: output
     inputType: OutputTopic
     description: This is the output topic to write data to
