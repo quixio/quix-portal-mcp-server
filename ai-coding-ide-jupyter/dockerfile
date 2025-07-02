@@ -1,29 +1,42 @@
 # ---------------------------------------------------------------------------
-# Base image – slim Python 3.11 keeps the footprint small
+# Base image – Debian-slim with Python 3.11
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim
 
 # ---------------------------------------------------------------------------
-# Environment – change these at build-time with `--build-arg` if allowed,
-# or override at run-time via platform-specific env-vars (if supported).
+# Build-time arguments (override with --build-arg if your platform allows it)
 # ---------------------------------------------------------------------------
 ARG JUPYTER_TOKEN=abcxyz
 ARG NOTEBOOK_DIR=/workspace
-ARG JUPYTER_PORT=80        # must be 80 so the service is externally reachable
+ARG JUPYTER_PORT=80          # keep port 80 for external exposure
 
+# ---------------------------------------------------------------------------
+# Environment variables
+# ---------------------------------------------------------------------------
 ENV JUPYTER_TOKEN=${JUPYTER_TOKEN} \
     NOTEBOOK_DIR=${NOTEBOOK_DIR} \
     JUPYTER_PORT=${JUPYTER_PORT}
 
 # ---------------------------------------------------------------------------
-# OS tools needed for a few wheels that still require compilation
+# Install OS packages
+#   * build-essential & gcc – compile the few Python wheels that need it
+#   * curl                – fetch remote resources from inside the container
+#   * NodeSource Node.js 20 LTS (includes npm) – for front-end workflows
 # ---------------------------------------------------------------------------
 RUN apt-get update \
- && apt-get install -y --no-install-recommends build-essential gcc \
- && rm -rf /var/lib/apt/lists/*
+ && apt-get install -y --no-install-recommends build-essential gcc curl ca-certificates gnupg \
+ # ---- Node.js 20.x from NodeSource GNUPG-signed repo ----
+ && mkdir -p /etc/apt/keyrings \
+ && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+ && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x $(grep VERSION_CODENAME /etc/os-release | cut -d= -f2) main" \
+      > /etc/apt/sources.list.d/nodesource.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends nodejs \
+ # ---- clean apt cache ----
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
-# Install the exact package set recommended by the MCP-server docs
+# Python dependencies exactly as in the MCP docs
 # ---------------------------------------------------------------------------
 RUN pip install --no-cache-dir jupyterlab==4.4.1 \
                          jupyter-collaboration==4.0.2 \
@@ -32,24 +45,21 @@ RUN pip install --no-cache-dir jupyterlab==4.4.1 \
  && pip install --no-cache-dir datalayer_pycrdt==0.12.17
 
 # ---------------------------------------------------------------------------
-# Expose port 80 so most schedulers automatically publish it
+# Expose the HTTP port so orchestrators discover it automatically
 # ---------------------------------------------------------------------------
 EXPOSE 80/tcp
 
 # ---------------------------------------------------------------------------
-# Put notebooks somewhere pleasant
+# Workspace for notebooks / code
 # ---------------------------------------------------------------------------
 WORKDIR ${NOTEBOOK_DIR}
 
 # ---------------------------------------------------------------------------
-# Default command – *no* external flags needed
-# ---------------------------------------------------------------------------
-# - binds to 0.0.0.0 so it’s reachable from outside the container
-# - uses --allow-root because we’re on port 80 (privileged) and default UID 0
+# Entrypoint – launches JupyterLab, reachable at http://<host>/ (port 80)
 # ---------------------------------------------------------------------------
 CMD ["sh", "-c", "jupyter lab \
-      --port ${JUPYTER_PORT} \
-      --IdentityProvider.token ${JUPYTER_TOKEN} \
-      --ip 0.0.0.0 \
-      --no-browser \
-      --allow-root"]
+        --port ${JUPYTER_PORT} \
+        --IdentityProvider.token ${JUPYTER_TOKEN} \
+        --ip 0.0.0.0 \
+        --no-browser \
+        --allow-root"]
