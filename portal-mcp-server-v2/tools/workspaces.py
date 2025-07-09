@@ -1,701 +1,201 @@
-"""Quix Workspaces MCP tools."""
+"""
+Quix Workspaces and Git Workflow MCP tools.
 
+This module provides high-level, workflow-oriented tools for managing Quix workspaces
+and promoting changes between environments.
+"""
+
+import os
 from typing import Any, Optional, Dict, List
+from enum import Enum
 from mcp.server.fastmcp import Context
 from .base import make_quix_request, QuixApiError
 
-async def list_workspaces(ctx: Context) -> str:
-    """List all workspaces for the organization.
-    
-    Returns:
-        A formatted string listing all workspaces with their details
-    """
-    try:
-        workspaces = await make_quix_request(
-            ctx,
-            "GET",
-            "workspaces"
-        )
-        
-        if not workspaces:
-            return "No workspaces found."
-        
-        result = "Workspaces:\n\n"
-        for workspace in workspaces:
-            result += f"ID: {workspace.get('workspaceId')}\n"
-            result += f"Name: {workspace.get('name')}\n"
-            result += f"Status: {workspace.get('status')}\n"
-            result += f"Broker Type: {workspace.get('brokerType')}\n"
-            result += f"Environment: {workspace.get('environmentName', 'N/A')}\n"
-            result += f"Branch: {workspace.get('branch', 'N/A')}\n"
-            result += f"Created: {workspace.get('createdAt', 'N/A')}\n"
-            
-            if workspace.get('lastError'):
-                result += f"Last Error: {workspace.get('lastError')}\n"
-            
-            result += "\n"
-        
-        return result
-        
-    except QuixApiError as e:
-        return f"Error retrieving workspaces: {str(e)}"
+# Enum for the `manage_workspace` tool's action parameter
+class WorkspaceAction(str, Enum):
+    enable = "enable"
+    disable = "disable"
+    delete = "delete"
+    rename = "rename"
 
-async def get_workspace(ctx: Context, workspace_id: str) -> str:
-    """Get details of a specific workspace.
-    
-    Args:
-        workspace_id: The ID of the workspace to retrieve
-        
-    Returns:
-        A formatted string with workspace details
+# --- Internal Helper Functions (Direct API Wrappers) ---
+
+async def _list_workspaces(ctx: Context) -> List[Dict[str, Any]]:
+    """Internal helper to fetch all workspaces."""
+    return await make_quix_request(ctx, "GET", "workspaces")
+
+async def _get_workspace(ctx: Context, workspace_id: str) -> Dict[str, Any]:
+    """Internal helper to fetch details for a single workspace."""
+    return await make_quix_request(ctx, "GET", f"workspaces/{workspace_id}")
+
+async def _enable_workspace(ctx: Context, workspace_id: str):
+    """Internal helper to enable a workspace."""
+    return await make_quix_request(ctx, "POST", f"workspaces/{workspace_id}/enable")
+
+async def _disable_workspace(ctx: Context, workspace_id: str):
+    """Internal helper to disable a workspace."""
+    return await make_quix_request(ctx, "POST", f"workspaces/{workspace_id}/disable")
+
+async def _delete_workspace(ctx: Context, workspace_id: str):
+    """Internal helper to delete a workspace."""
+    return await make_quix_request(ctx, "DELETE", f"workspaces/{workspace_id}")
+
+async def _rename_workspace(ctx: Context, workspace_id: str, new_name: str):
+    """Internal helper to rename a workspace."""
+    return await make_quix_request(ctx, "PATCH", f"workspaces/{workspace_id}/rename/{new_name}")
+
+async def _create_pull_request(ctx: Context, target_workspace_id: str, source_branch: str, title: str, body: Optional[str]) -> str:
+    """Internal helper to create a pull request."""
+    payload = {
+        "sourceBranch": source_branch,
+        "title": title,
+        "body": body
+    }
+    return await make_quix_request(ctx, "POST", f"workspaces/{target_workspace_id}/pullrequests", json=payload)
+
+# --- New High-Level MCP Tools ---
+
+async def find_workspaces(ctx: Context) -> str:
+    """
+    <usecase>
+    Finds and lists all workspaces (environments) for your organization. Use this to get an overview and find the ID for a specific workspace.
+    </usecase>
+    <instructions>
+    This tool lists all workspaces you have access to. The 'Workspace ID' is required for most other workspace management tools.
+    </instructions>
     """
     try:
-        workspace = await make_quix_request(
-            ctx,
-            "GET", 
-            f"workspaces/{workspace_id}"
-        )
+        workspaces = await _list_workspaces(ctx)
+        if not workspaces:
+            return "No workspaces found in this organization. You may need to create a project first."
         
+        result = "Found the following workspaces (environments):\n\n"
+        for ws in workspaces:
+            result += f"- Name: {ws.get('name')} (Branch: {ws.get('branch')})\n"
+            result += f"  ID: {ws.get('workspaceId')}\n"
+            result += f"  Status: {ws.get('status')}\n\n"
+        
+        result += "To see more details about a specific workspace, use `get_workspace_details(workspace_id='...')`."
+        return result
+    except QuixApiError as e:
+        # --- Guided Error Handling ---
+        return f"Error finding workspaces. This could be due to an authentication or network issue. Please verify your QUIX_TOKEN and QUIX_BASE_URL environment variables are correct. Original error: {str(e)}"
+
+async def get_workspace_details(ctx: Context) -> str:
+    """
+    <usecase>
+    Retrieves detailed information about the current workspace, including its status, associated Git branch, and broker type.
+    </usecase>
+    <instructions>
+    This tool operates on the current workspace configured for the server. The workspace ID is automatically retrieved from the environment variables.
+    </instructions>
+    """
+    try:
+        workspace_id = os.environ.get("QUIX_WORKSPACE")
+        if not workspace_id:
+            return "Error: The current QUIX_WORKSPACE environment variable is not set. Unable to identify the current workspace."
+            
+        workspace = await _get_workspace(ctx, workspace_id)
         if not workspace:
-            return f"Workspace {workspace_id} not found."
-        
-        result = f"Workspace Details:\n\n"
+            return f"Could not retrieve details for workspace ID '{workspace_id}'."
+
+        result = f"Details for Workspace '{workspace.get('name')}':\n\n"
         result += f"ID: {workspace.get('workspaceId')}\n"
-        result += f"Name: {workspace.get('name')}\n"
+        result += f"Environment Name: {workspace.get('environmentName')}\n"
+        result += f"Git Branch: {workspace.get('branch')}\n"
+        result += f"Branch Protected: {workspace.get('branchProtected')}\n"
         result += f"Status: {workspace.get('status')}\n"
         result += f"Broker Type: {workspace.get('brokerType')}\n"
-        result += f"Environment: {workspace.get('environmentName', 'N/A')}\n"
-        result += f"Branch: {workspace.get('branch', 'N/A')}\n"
-        result += f"Branch Protected: {workspace.get('branchProtected', False)}\n"
-        result += f"Created: {workspace.get('createdAt', 'N/A')}\n"
-        result += f"Version: {workspace.get('version', 'N/A')}\n"
         
-        if workspace.get('lastError'):
-            result += f"Last Error: {workspace.get('lastError')}\n"
+        broker_details = workspace.get('broker')
+        if broker_details:
+            result += f"Broker Address: {broker_details.get('address')}\n"
         
-        # Broker details
-        broker = workspace.get('broker', {})
-        if broker:
-            result += f"\nBroker Details:\n"
-            result += f"Address: {broker.get('address', 'N/A')}\n"
-            result += f"Security Mode: {broker.get('securityMode', 'N/A')}\n"
-            result += f"SASL Mechanism: {broker.get('saslMechanism', 'N/A')}\n"
-            result += f"Username: {broker.get('username', 'N/A')}\n"
-            result += f"Has Certificate: {broker.get('hasCertificate', False)}\n"
-        
+        result += "\nNext steps you might consider:"
+        result += "\n- List applications with `find_applications()`"
+        result += "\n- List deployments with `find_deployments()`"
+        result += "\n- List topics with `find_topics()`"
         return result
-        
     except QuixApiError as e:
-        return f"Error retrieving workspace {workspace_id}: {str(e)}"
+        # --- Guided Error Handling ---
+        workspace_id = os.environ.get("QUIX_WORKSPACE", "unknown")
+        return f"Error getting details for workspace '{workspace_id}'. The ID might be incorrect or you may lack permissions. You can list all accessible workspaces with `find_workspaces()` to verify the correct ID. Original error: {str(e)}"
 
-async def get_workspace_variables(ctx: Context, workspace_id: str) -> str:
-    """Get workspace variables.
-    
-    Args:
-        workspace_id: The workspace ID
-        
-    Returns:
-        A formatted string with workspace variables
+async def manage_workspace(
+    ctx: Context,
+    action: WorkspaceAction,
+    workspace_id: str,
+    new_name: Optional[str] = None
+) -> str:
+    """
+    <usecase>
+    Manages a workspace's lifecycle. Use this to enable, disable, rename, or delete a workspace.
+    </usecase>
+    <instructions>
+    - 'action' specifies the operation: 'enable', 'disable', 'rename', or 'delete'.
+    - 'workspace_id' is required for all actions.
+    - For 'rename', the 'new_name' argument is required.
+    - Always confirm with the user before performing 'delete' or 'disable' actions as they can be disruptive.
+    </instructions>
     """
     try:
-        variables = await make_quix_request(
-            ctx,
-            "GET",
-            f"workspaces/{workspace_id}/variables"
-        )
+        if action == WorkspaceAction.enable:
+            await _enable_workspace(ctx, workspace_id)
+            return f"Workspace '{workspace_id}' has been enabled."
         
-        if not variables:
-            return f"No variables found for workspace {workspace_id}."
-        
-        result = f"Workspace Variables:\n\n"
-        for key, value in variables.items():
-            result += f"{key}: {value}\n"
-        
-        return result
-        
-    except QuixApiError as e:
-        return f"Error retrieving variables for workspace {workspace_id}: {str(e)}"
-
-async def set_workspace_variables(ctx: Context, workspace_id: str, variables: Dict[str, str]) -> str:
-    """Set workspace variables.
-    
-    Args:
-        workspace_id: The workspace ID
-        variables: Dictionary of variable key-value pairs to set
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        await make_quix_request(
-            ctx,
-            "PUT",
-            f"workspaces/{workspace_id}/variables",
-            json=variables
-        )
-        
-        return f"Successfully updated variables for workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error setting variables for workspace {workspace_id}: {str(e)}"
-
-async def get_workspace_yaml(ctx: Context, workspace_id: str, reference: Optional[str] = None) -> str:
-    """Get the workspace YAML descriptor.
-    
-    Args:
-        workspace_id: The workspace ID
-        reference: Optional git reference (defaults to HEAD)
-        
-    Returns:
-        The YAML content as a string
-    """
-    try:
-        params = {}
-        if reference:
-            params["reference"] = reference
+        if action == WorkspaceAction.disable:
+            await _disable_workspace(ctx, workspace_id)
+            return f"Workspace '{workspace_id}' has been disabled."
             
-        yaml_content = await make_quix_request(
-            ctx,
-            "GET",
-            f"workspaces/{workspace_id}/yaml",
-            params=params
-        )
-        
-        if not yaml_content:
-            return f"No YAML found for workspace {workspace_id}."
-        
-        return f"Workspace YAML:\n\n{yaml_content}"
-        
-    except QuixApiError as e:
-        return f"Error retrieving YAML for workspace {workspace_id}: {str(e)}"
-
-async def update_workspace_yaml(ctx: Context, workspace_id: str, yaml_content: str, commit_message: Optional[str] = None) -> str:
-    """Update the workspace YAML descriptor.
-    
-    Args:
-        workspace_id: The workspace ID
-        yaml_content: The new YAML content
-        commit_message: Optional commit message
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        params = {}
-        if commit_message:
-            params["commitMessage"] = commit_message
+        if action == WorkspaceAction.rename:
+            if not new_name:
+                return "Error: 'new_name' is required for the rename action."
+            await _rename_workspace(ctx, workspace_id, new_name)
+            return f"Workspace '{workspace_id}' has been renamed to '{new_name}'."
             
-        await make_quix_request(
-            ctx,
-            "PUT",
-            f"workspaces/{workspace_id}/yaml",
-            json=yaml_content,
-            params=params,
-            headers={"Content-Type": "text/plain"}
-        )
-        
-        return f"Successfully updated YAML for workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error updating YAML for workspace {workspace_id}: {str(e)}"
-
-async def get_workspace_sync_status(ctx: Context, workspace_id: str) -> str:
-    """Get workspace sync status.
-    
-    Args:
-        workspace_id: The workspace ID
-        
-    Returns:
-        A formatted string with sync status details
-    """
-    try:
-        sync_status = await make_quix_request(
-            ctx,
-            "GET",
-            f"workspaces/{workspace_id}/sync/status"
-        )
-        
-        if not sync_status:
-            return f"No sync status found for workspace {workspace_id}."
-        
-        result = f"Workspace Sync Status:\n\n"
-        result += f"Status: {sync_status.get('status', 'Unknown')}\n"
-        result += f"YAML Out of Sync: {sync_status.get('yamlOutOfSync', False)}\n"
-        result += f"Variables Out of Sync: {sync_status.get('variablesOutOfSync', False)}\n"
-        result += f"Deployments Out of Sync: {sync_status.get('deploymentsVersionsOutOfSync', False)}\n"
-        result += f"Last Repo Commit: {sync_status.get('lastRepoCommitReference', 'N/A')}\n"
-        result += f"Synced Commit: {sync_status.get('syncedCommitReference', 'N/A')}\n"
-        result += f"Commits Behind: {sync_status.get('commitsBehind', 0)}\n"
-        
-        error = sync_status.get('error')
-        if error:
-            result += f"Error: {error.get('error', 'N/A')}\n"
-            result += f"Error Commit: {error.get('commitReference', 'N/A')}\n"
-        
-        return result
-        
-    except QuixApiError as e:
-        return f"Error retrieving sync status for workspace {workspace_id}: {str(e)}"
-
-async def sync_workspace(ctx: Context, workspace_id: str, reference: Optional[str] = None, dry_run: bool = False, create_deployments_stopped: bool = False) -> str:
-    """Sync workspace with repository.
-    
-    Args:
-        workspace_id: The workspace ID
-        reference: Optional git reference (defaults to HEAD)
-        dry_run: If True, performs a dry run sync (default: False)
-        create_deployments_stopped: If True, creates deployments as stopped (default: False)
-        
-    Returns:
-        A formatted string with sync results
-    """
-    try:
-        params = {}
-        if reference:
-            params["reference"] = reference
-        if create_deployments_stopped:
-            params["createDeploymentsAsStopped"] = "true"
+        if action == WorkspaceAction.delete:
+            await _delete_workspace(ctx, workspace_id)
+            return f"Workspace '{workspace_id}' has been deleted successfully."
             
-        method = "GET" if dry_run else "POST"
-        
-        sync_result = await make_quix_request(
-            ctx,
-            method,
-            f"workspaces/{workspace_id}/sync",
-            params=params
-        )
-        
-        if not sync_result:
-            return f"No sync result for workspace {workspace_id}."
-        
-        result = f"Workspace Sync {'Preview' if dry_run else 'Result'}:\n\n"
-        
-        # Applications changes
-        app_results = sync_result.get('applicationsSyncResults', [])
-        if app_results:
-            result += "Application Changes:\n"
-            for app_result in app_results:
-                change = app_result.get('changeDetails', {})
-                action = change.get('action', 'Unknown')
-                target_key = change.get('targetKey', 'Unknown')
-                operation_result = app_result.get('result', 'Unknown')
-                result += f"  - {action} {target_key}: {operation_result}\n"
-                if app_result.get('error'):
-                    result += f"    Error: {app_result.get('error')}\n"
-            result += "\n"
-        
-        # Deployment changes
-        deploy_results = sync_result.get('deploymentsSyncResults', [])
-        if deploy_results:
-            result += "Deployment Changes:\n"
-            for deploy_result in deploy_results:
-                change = deploy_result.get('changeDetails', {})
-                action = change.get('action', 'Unknown')
-                target_key = change.get('targetKey', 'Unknown')
-                operation_result = deploy_result.get('result', 'Unknown')
-                result += f"  - {action} {target_key}: {operation_result}\n"
-                if deploy_result.get('error'):
-                    result += f"    Error: {deploy_result.get('error')}\n"
-            result += "\n"
-        
-        # Topic changes
-        topic_results = sync_result.get('topicsSyncResults', [])
-        if topic_results:
-            result += "Topic Changes:\n"
-            for topic_result in topic_results:
-                change = topic_result.get('changeDetails', {})
-                action = change.get('action', 'Unknown')
-                target_key = change.get('targetKey', 'Unknown')
-                operation_result = topic_result.get('result', 'Unknown')
-                result += f"  - {action} {target_key}: {operation_result}\n"
-                if topic_result.get('error'):
-                    result += f"    Error: {topic_result.get('error')}\n"
-            result += "\n"
-        
-        if not app_results and not deploy_results and not topic_results:
-            result += "No changes detected.\n"
-        
-        return result
-        
     except QuixApiError as e:
-        return f"Error syncing workspace {workspace_id}: {str(e)}"
+        # --- Guided Error Handling ---
+        return f"Error performing '{action.value}' on workspace '{workspace_id}'. Please ensure the workspace ID is correct and that you have the necessary permissions for this action. You can list available workspaces with `find_workspaces()` to verify the ID. Original error: {str(e)}"
 
-async def create_workspace_branch(ctx: Context, workspace_id: str, branch_name: str) -> str:
-    """Create a new branch in the workspace.
-    
-    Args:
-        workspace_id: The workspace ID
-        branch_name: Name of the branch to create
-        
-    Returns:
-        Success message or error
+async def promote_environment(
+    ctx: Context, 
+    source_branch: str, 
+    target_branch: str, 
+    title: str, 
+    body: Optional[str] = None
+) -> str:
+    """
+    <usecase>
+    Promotes changes from one environment (branch) to another by creating a pull request. This is the standard and recommended way to move tested changes from a development environment to production.
+    </usecase>
+    <instructions>
+    - 'source_branch' is the branch containing the changes you want to merge (e.g., 'develop').
+    - 'target_branch' is the destination branch for the changes (e.g., 'main').
+    - 'title' is a short, descriptive summary for the pull request.
+    - 'body' is an optional longer description of the changes.
+    </instructions>
     """
     try:
-        await make_quix_request(
-            ctx,
-            "POST",
-            f"workspaces/{workspace_id}/branch/{branch_name}"
-        )
-        
-        return f"Successfully created branch '{branch_name}' in workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error creating branch '{branch_name}' in workspace {workspace_id}: {str(e)}"
+        await ctx.info(f"Finding target workspace for branch '{target_branch}'...")
+        all_workspaces = await _list_workspaces(ctx)
+        target_workspace = next((ws for ws in all_workspaces if ws.get('branch') == target_branch), None)
 
-async def switch_workspace_branch(ctx: Context, workspace_id: str, branch_name: str, protected: bool = False) -> str:
-    """Switch to a different branch in the workspace.
-    
-    Args:
-        workspace_id: The workspace ID
-        branch_name: Name of the branch to switch to
-        protected: Whether the branch is protected (default: False)
+        if not target_workspace:
+            return f"Error: Could not find a workspace associated with the target branch '{target_branch}'. Please ensure a workspace for this branch exists."
+
+        target_workspace_id = target_workspace['workspaceId']
+        await ctx.info(f"Target workspace found: '{target_workspace['name']}' ({target_workspace_id}). Creating pull request...")
+
+        pr_url = await _create_pull_request(ctx, target_workspace_id, source_branch, title, body)
         
-    Returns:
-        Success message or error with commit details
-    """
-    try:
-        params = {}
-        if protected:
-            params["branchProtected"] = "true"
+        if not pr_url:
+            raise QuixApiError("Pull request creation did not return a URL.")
             
-        commit = await make_quix_request(
-            ctx,
-            "PATCH",
-            f"workspaces/{workspace_id}/branch/{branch_name}",
-            params=params
-        )
-        
-        result = f"Successfully switched to branch '{branch_name}' in workspace {workspace_id}."
-        
-        if commit:
-            result += f"\nCurrent commit: {commit.get('reference', 'N/A')}"
-            result += f"\nCommit message: {commit.get('message', 'N/A')}"
-            result += f"\nAuthor: {commit.get('authorName', 'N/A')}"
-        
-        return result
-        
+        return f"Pull request created successfully to promote '{source_branch}' to '{target_branch}'.\nPlease review and merge it here: {pr_url}"
     except QuixApiError as e:
-        return f"Error switching to branch '{branch_name}' in workspace {workspace_id}: {str(e)}"
-
-async def create_workspace_tag(ctx: Context, workspace_id: str, tag_name: str, reference: Optional[str] = None) -> str:
-    """Create a new tag in the workspace.
-    
-    Args:
-        workspace_id: The workspace ID
-        tag_name: Name of the tag to create
-        reference: Optional git reference to tag (defaults to HEAD)
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        tag_request = {
-            "tagName": tag_name
-        }
-        if reference:
-            tag_request["reference"] = reference
-            
-        await make_quix_request(
-            ctx,
-            "POST",
-            f"workspaces/{workspace_id}/tags",
-            json=tag_request
-        )
-        
-        return f"Successfully created tag '{tag_name}' in workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error creating tag '{tag_name}' in workspace {workspace_id}: {str(e)}"
-
-async def delete_workspace_tag(ctx: Context, workspace_id: str, tag_name: str) -> str:
-    """Delete a tag from the workspace.
-    
-    Args:
-        workspace_id: The workspace ID
-        tag_name: Name of the tag to delete
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        await make_quix_request(
-            ctx,
-            "DELETE",
-            f"workspaces/{workspace_id}/tags/{tag_name}"
-        )
-        
-        return f"Successfully deleted tag '{tag_name}' from workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error deleting tag '{tag_name}' from workspace {workspace_id}: {str(e)}"
-
-async def get_workspace_commits(ctx: Context, workspace_id: str, reference: Optional[str] = None, limit: Optional[int] = None) -> str:
-    """Get commits for the workspace.
-    
-    Args:
-        workspace_id: The workspace ID
-        reference: Optional git reference (defaults to HEAD)
-        limit: Optional limit on number of commits to retrieve
-        
-    Returns:
-        A formatted string with commit history
-    """
-    try:
-        params = {}
-        if reference:
-            params["reference"] = reference
-        if limit:
-            params["limit"] = str(limit)
-            
-        commits = await make_quix_request(
-            ctx,
-            "GET",
-            f"workspaces/{workspace_id}/yaml/commits",
-            params=params
-        )
-        
-        if not commits:
-            return f"No commits found for workspace {workspace_id}."
-        
-        result = f"Workspace Commits:\n\n"
-        for commit in commits:
-            result += f"Reference: {commit.get('reference', 'N/A')}\n"
-            result += f"Message: {commit.get('message', 'N/A')}\n"
-            result += f"Author: {commit.get('authorName', 'N/A')} <{commit.get('authorEmail', 'N/A')}>\n"
-            result += f"Created: {commit.get('createdAt', 'N/A')}\n"
-            result += "\n"
-        
-        return result
-        
-    except QuixApiError as e:
-        return f"Error retrieving commits for workspace {workspace_id}: {str(e)}"
-
-async def enable_workspace(ctx: Context, workspace_id: str) -> str:
-    """Enable a workspace.
-    
-    Args:
-        workspace_id: The workspace ID
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        await make_quix_request(
-            ctx,
-            "POST",
-            f"workspaces/{workspace_id}/enable"
-        )
-        
-        return f"Successfully enabled workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error enabling workspace {workspace_id}: {str(e)}"
-
-async def disable_workspace(ctx: Context, workspace_id: str) -> str:
-    """Disable a workspace.
-    
-    Args:
-        workspace_id: The workspace ID
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        await make_quix_request(
-            ctx,
-            "POST",
-            f"workspaces/{workspace_id}/disable"
-        )
-        
-        return f"Successfully disabled workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error disabling workspace {workspace_id}: {str(e)}"
-
-async def delete_workspace(ctx: Context, workspace_id: str) -> str:
-    """Delete a workspace.
-    
-    Args:
-        workspace_id: The workspace ID
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        await make_quix_request(
-            ctx,
-            "DELETE",
-            f"workspaces/{workspace_id}"
-        )
-        
-        return f"Successfully deleted workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error deleting workspace {workspace_id}: {str(e)}"
-
-async def rename_workspace(ctx: Context, workspace_id: str, new_name: str) -> str:
-    """Rename a workspace.
-    
-    Args:
-        workspace_id: The workspace ID
-        new_name: The new name for the workspace
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        await make_quix_request(
-            ctx,
-            "PATCH",
-            f"workspaces/{workspace_id}/rename/{new_name}"
-        )
-        
-        return f"Successfully renamed workspace {workspace_id} to '{new_name}'."
-        
-    except QuixApiError as e:
-        return f"Error renaming workspace {workspace_id}: {str(e)}"
-
-async def create_workspace(ctx: Context, repository_id: str, environment_name: str, branch: str, 
-                          workspace_class_id: Optional[str] = None, storage_class_id: Optional[str] = None,
-                          broker_type: str = "SharedKafka", sync_topics: bool = True, 
-                          branch_protected: bool = False, cluster_id: Optional[str] = None,
-                          node_group_id: Optional[str] = None, broker_id: Optional[str] = None) -> str:
-    """Create a new workspace V2.
-    
-    Args:
-        repository_id: Repository ID for the workspace
-        environment_name: Name of the environment
-        branch: Git branch name for the workspace
-        workspace_class_id: Optional workspace class ID
-        storage_class_id: Optional storage class ID
-        broker_type: Broker type (default: SharedKafka)
-        sync_topics: Whether to sync existing topics in the broker (default: True)
-        branch_protected: Whether the branch is protected (default: False)
-        cluster_id: Optional cluster ID for deployments and IDEs
-        node_group_id: Optional node group ID within the cluster
-        broker_id: Optional broker configuration ID
-        
-    Returns:
-        Success message with workspace details or error
-    """
-    try:
-        workspace_request = {
-            "repositoryId": repository_id,
-            "environmentName": environment_name,
-            "branch": branch,
-            "branchProtected": branch_protected,
-            "brokerSettings": {
-                "brokerType": broker_type,
-                "syncTopics": sync_topics
-            }
-        }
-        
-        if workspace_class_id:
-            workspace_request["workspaceClassId"] = workspace_class_id
-        if storage_class_id:
-            workspace_request["storageClassId"] = storage_class_id
-        if cluster_id:
-            workspace_request["clusterId"] = cluster_id
-        if node_group_id:
-            workspace_request["nodeGroupId"] = node_group_id
-        if broker_id:
-            workspace_request["brokerId"] = broker_id
-            
-        workspace = await make_quix_request(
-            ctx,
-            "POST",
-            "workspaces",
-            json=workspace_request
-        )
-        
-        if not workspace:
-            return "Workspace creation initiated but no response received."
-        
-        result = f"Successfully created workspace:\n\n"
-        result += f"ID: {workspace.get('workspaceId', 'N/A')}\n"
-        result += f"Name: {workspace.get('name', 'N/A')}\n"
-        result += f"Status: {workspace.get('status', 'N/A')}\n"
-        result += f"Environment: {workspace.get('environmentName', 'N/A')}\n"
-        result += f"Branch: {workspace.get('branch', 'N/A')}\n"
-        result += f"Branch Protected: {workspace.get('branchProtected', False)}\n"
-        result += f"Broker Type: {workspace.get('brokerType', 'N/A')}\n"
-        result += f"Created: {workspace.get('createdAt', 'N/A')}\n"
-        
-        return result
-        
-    except QuixApiError as e:
-        return f"Error creating workspace: {str(e)}"
-
-async def get_workspace_commit(ctx: Context, workspace_id: str, reference: str) -> str:
-    """Get the commit of a git reference.
-    
-    Args:
-        workspace_id: The workspace ID
-        reference: The git reference (commit hash, branch name, or tag)
-        
-    Returns:
-        A formatted string with commit details
-    """
-    try:
-        commit = await make_quix_request(
-            ctx,
-            "GET",
-            f"workspaces/{workspace_id}/commits/{reference}"
-        )
-        
-        if not commit:
-            return f"No commit found for reference '{reference}' in workspace {workspace_id}."
-        
-        result = f"Commit Details:\n\n"
-        result += f"Reference: {commit.get('reference', 'N/A')}\n"
-        result += f"Message: {commit.get('message', 'N/A')}\n"
-        result += f"Author: {commit.get('authorName', 'N/A')} <{commit.get('authorEmail', 'N/A')}>\n"
-        result += f"Committer: {commit.get('committerName', 'N/A')}\n"
-        result += f"Created: {commit.get('createdAt', 'N/A')}\n"
-        
-        return result
-        
-    except QuixApiError as e:
-        return f"Error retrieving commit '{reference}' for workspace {workspace_id}: {str(e)}"
-
-async def pull_workspace(ctx: Context, workspace_id: str) -> str:
-    """Pull the latest changes from the remote repository.
-    
-    Args:
-        workspace_id: The workspace ID
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        await make_quix_request(
-            ctx,
-            "POST",
-            f"workspaces/{workspace_id}/pull"
-        )
-        
-        return f"Successfully pulled latest changes from remote for workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error pulling changes for workspace {workspace_id}: {str(e)}"
-
-async def push_workspace(ctx: Context, workspace_id: str) -> str:
-    """Push the latest changes to the remote repository.
-    
-    Args:
-        workspace_id: The workspace ID
-        
-    Returns:
-        Success message or error
-    """
-    try:
-        await make_quix_request(
-            ctx,
-            "POST",
-            f"workspaces/{workspace_id}/push"
-        )
-        
-        return f"Successfully pushed latest changes to remote for workspace {workspace_id}."
-        
-    except QuixApiError as e:
-        return f"Error pushing changes for workspace {workspace_id}: {str(e)}"
+        # --- Guided Error Handling ---
+        return f"Error promoting environment from '{source_branch}' to '{target_branch}'. Please ensure both branches exist and that you have permissions to create pull requests. You can list all workspaces and their branches with `find_workspaces()` to verify the branch names. Original error: {str(e)}"
