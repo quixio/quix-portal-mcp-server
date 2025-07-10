@@ -11,6 +11,7 @@ from typing import Any, Optional, Dict, List
 from enum import Enum
 from mcp.server.fastmcp import Context
 from .base import make_quix_request, QuixApiError
+from . import applications
 
 # Enums for the session management tools
 class SessionAction(str, Enum):
@@ -21,6 +22,7 @@ class SessionUpdateAction(str, Enum):
     update_branch = "update_branch"
     update_variables = "update_variables"
     update_application = "update_application"
+    sync_application_variables = "sync_application_variables"
 
 # --- Internal Helper Functions (Direct API Wrappers) ---
 
@@ -204,8 +206,8 @@ async def manage_session(
                 "publicAccess": public_access
             }
             
-            if branch_name:
-                payload["branchName"] = branch_name
+            # Default to "main" branch if not specified
+            payload["branchName"] = branch_name or "main"
             if public_access and url_prefix:
                 payload["urlPrefix"] = url_prefix
             if environment_variables:
@@ -216,7 +218,7 @@ async def manage_session(
             
             result = f"IDE session started successfully with ID: {new_session_id}\n"
             result += f"- Application: {application_id}\n"
-            result += f"- Branch: {branch_name or 'default'}\n"
+            result += f"- Branch: {branch_name or 'main'}\n"
             result += f"- Resources: {cpu_millicores}m CPU, {memory_in_mb}MB RAM\n"
             if public_access:
                 result += f"- Public URL: {session.get('urlPrefix', 'N/A')}\n"
@@ -302,6 +304,7 @@ async def update_session_config(
     - For 'update_branch', provide 'branch_name' or 'git_reference'.
     - For 'update_variables', provide 'environment_variables' dictionary.
     - For 'update_application', provide 'dockerfile', 'run_entry_point', or 'variables'.
+    - For 'sync_application_variables', no additional parameters needed - automatically syncs session with current application variable configuration including proper Secret type handling.
     </instructions>
     """
     try:
@@ -340,6 +343,39 @@ async def update_session_config(
             
             await _update_session_application(ctx, workspace_id, session_id, payload)
             return f"Session '{session_id}' application configuration updated successfully."
+        
+        elif action == SessionUpdateAction.sync_application_variables:
+            # Get session details to find the application ID
+            session_details = await _get_session(ctx, workspace_id, session_id)
+            application_id = session_details.get('applicationId')
+            
+            if not application_id:
+                return f"Error: Could not determine application ID for session '{session_id}'."
+            
+            # Get the current application configuration with variables
+            app_details = await applications._get_application(ctx, workspace_id, application_id)
+            app_variables = app_details.get('variables', [])
+            
+            if not app_variables:
+                return f"No variables found in application '{application_id}' to sync."
+            
+            # Update session application with the current application variables
+            payload = {"variables": app_variables}
+            await _update_session_application(ctx, workspace_id, session_id, payload)
+            
+            # Format response showing synced variables
+            result = f"Session '{session_id}' successfully synced with application '{application_id}' variables:\n\n"
+            for var in app_variables:
+                result += f"• {var.get('name')} ({var.get('inputType')})"
+                if var.get('defaultValue'):
+                    if var.get('inputType') == 'Secret':
+                        result += f" = [Secret: {var.get('defaultValue')}]"
+                    else:
+                        result += f" = {var.get('defaultValue')}"
+                result += "\n"
+            
+            result += f"\nThis ensures proper secret resolution and variable type handling. You can now run code with `run_code_in_session(session_id='{session_id}', ...)`."
+            return result
         
     except QuixApiError as e:
         # --- Guided Error Handling ---
