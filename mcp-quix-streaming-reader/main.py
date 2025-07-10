@@ -67,8 +67,8 @@ async def infer_topic_schema(
     <instructions>
     You must provide the workspace_id and topic_id. If the user hasn't given one of both of these details to you, or it looks incorrect,
     use one of the following tools to provide them with a list of choices.
-    For workspaces: use find_workspaces() to list all workspaces
-    For topics: use find_topics() to list all topic
+    For workspaces: use find_workspaces() to list all workspaces in the org.
+    For topics: use find_topics() to list all topics in the workspace (you need to know the workspace first).
     Note that the topic ID uses the pattern {workspaceId} + "-" + "topicName". Example: "demo-myworkspace-myenv-mytopicname"
     The tool will return the message sample 100 most recent messages to you, which you should then use 
     to infer the schema.
