@@ -26,23 +26,23 @@ async def _list_workspaces(ctx: Context) -> List[Dict[str, Any]]:
 
 async def _get_workspace(ctx: Context, workspace_id: str) -> Dict[str, Any]:
     """Internal helper to fetch details for a single workspace."""
-    return await make_quix_request(ctx, "GET", f"workspaces/{workspace_id}")
+    return await make_quix_request(ctx, "GET", f"workspaces/{workspace_id}", workspace_id=workspace_id)
 
 async def _enable_workspace(ctx: Context, workspace_id: str):
     """Internal helper to enable a workspace."""
-    return await make_quix_request(ctx, "POST", f"workspaces/{workspace_id}/enable")
+    return await make_quix_request(ctx, "POST", f"workspaces/{workspace_id}/enable", workspace_id=workspace_id)
 
 async def _disable_workspace(ctx: Context, workspace_id: str):
     """Internal helper to disable a workspace."""
-    return await make_quix_request(ctx, "POST", f"workspaces/{workspace_id}/disable")
+    return await make_quix_request(ctx, "POST", f"workspaces/{workspace_id}/disable", workspace_id=workspace_id)
 
 async def _delete_workspace(ctx: Context, workspace_id: str):
     """Internal helper to delete a workspace."""
-    return await make_quix_request(ctx, "DELETE", f"workspaces/{workspace_id}")
+    return await make_quix_request(ctx, "DELETE", f"workspaces/{workspace_id}", workspace_id=workspace_id)
 
 async def _rename_workspace(ctx: Context, workspace_id: str, new_name: str):
     """Internal helper to rename a workspace."""
-    return await make_quix_request(ctx, "PATCH", f"workspaces/{workspace_id}/rename/{new_name}")
+    return await make_quix_request(ctx, "PATCH", f"workspaces/{workspace_id}/rename/{new_name}", workspace_id=workspace_id)
 
 async def _create_pull_request(ctx: Context, target_workspace_id: str, source_branch: str, title: str, body: Optional[str]) -> str:
     """Internal helper to create a pull request."""
@@ -51,7 +51,7 @@ async def _create_pull_request(ctx: Context, target_workspace_id: str, source_br
         "title": title,
         "body": body
     }
-    return await make_quix_request(ctx, "POST", f"workspaces/{target_workspace_id}/pullrequests", json=payload)
+    return await make_quix_request(ctx, "POST", f"workspaces/{target_workspace_id}/pullrequests", workspace_id=target_workspace_id, json=payload)
 
 # --- New High-Level MCP Tools ---
 
@@ -81,23 +81,19 @@ async def find_workspaces(ctx: Context) -> str:
         # --- Guided Error Handling ---
         return f"Error finding workspaces. This could be due to an authentication or network issue. Please verify your QUIX_TOKEN and QUIX_BASE_URL environment variables are correct. Original error: {str(e)}"
 
-async def get_workspace_details(ctx: Context) -> str:
+async def get_workspace_details(ctx: Context, workspace_id: str) -> str:
     """
     <usecase>
-    Retrieves detailed information about the current workspace, including its status, associated Git branch, and broker type.
+    Retrieves detailed information about a specific workspace, including its status, associated Git branch, and broker type.
     </usecase>
     <instructions>
-    This tool operates on the current workspace configured for the server. The workspace ID is automatically retrieved from the environment variables.
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
     </instructions>
     """
     try:
-        workspace_id = os.environ.get("QUIX_WORKSPACE")
-        if not workspace_id:
-            return "Error: The current QUIX_WORKSPACE environment variable is not set. Unable to identify the current workspace."
-            
         workspace = await _get_workspace(ctx, workspace_id)
         if not workspace:
-            return f"Could not retrieve details for workspace ID '{workspace_id}'."
+            return f"Could not retrieve details for workspace ID '{workspace_id}'. Please verify the workspace ID is correct."
 
         result = f"Details for Workspace '{workspace.get('name')}':\n\n"
         result += f"ID: {workspace.get('workspaceId')}\n"
@@ -112,13 +108,12 @@ async def get_workspace_details(ctx: Context) -> str:
             result += f"Broker Address: {broker_details.get('address')}\n"
         
         result += "\nNext steps you might consider:"
-        result += "\n- List applications with `find_applications()`"
-        result += "\n- List deployments with `find_deployments()`"
-        result += "\n- List topics with `find_topics()`"
+        result += f"\n- List applications with `find_applications(workspace_id='{workspace_id}')`"
+        result += f"\n- List deployments with `find_deployments(workspace_id='{workspace_id}')`"
+        result += f"\n- List topics with `find_topics(workspace_id='{workspace_id}')`"
         return result
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        workspace_id = os.environ.get("QUIX_WORKSPACE", "unknown")
         return f"Error getting details for workspace '{workspace_id}'. The ID might be incorrect or you may lack permissions. You can list all accessible workspaces with `find_workspaces()` to verify the correct ID. Original error: {str(e)}"
 
 async def manage_workspace(

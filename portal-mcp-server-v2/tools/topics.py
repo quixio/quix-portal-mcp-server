@@ -13,46 +13,62 @@ class TopicAction(str, Enum):
 
 # --- Internal Helper Functions ---
 
-async def _get_topics(ctx: Context):
-    return await make_quix_request(ctx, "GET", "{workspaceId}/topics")
+async def _get_topics(ctx: Context, workspace_id: str):
+    return await make_quix_request(ctx, "GET", "{workspaceId}/topics", workspace_id=workspace_id)
 
-async def _get_topic(ctx: Context, topic_name: str):
-    return await make_quix_request(ctx, "GET", f"{{workspaceId}}/topics/{topic_name}")
+async def _get_topic(ctx: Context, workspace_id: str, topic_name: str):
+    return await make_quix_request(ctx, "GET", f"{{workspaceId}}/topics/{topic_name}", workspace_id=workspace_id)
 
-async def _create_topic(ctx: Context, payload: Dict[str, Any]):
-    return await make_quix_request(ctx, "POST", "{workspaceId}/topics", json=payload)
+async def _create_topic(ctx: Context, workspace_id: str, payload: Dict[str, Any]):
+    return await make_quix_request(ctx, "POST", "{workspaceId}/topics", workspace_id=workspace_id, json=payload)
 
-async def _update_topic(ctx: Context, topic_name: str, payload: Dict[str, Any]):
-    return await make_quix_request(ctx, "PATCH", f"{{workspaceId}}/topics/{topic_name}", json=payload)
+async def _update_topic(ctx: Context, workspace_id: str, topic_name: str, payload: Dict[str, Any]):
+    return await make_quix_request(ctx, "PATCH", f"{{workspaceId}}/topics/{topic_name}", workspace_id=workspace_id, json=payload)
 
-async def _delete_topic(ctx: Context, topic_name: str):
-    return await make_quix_request(ctx, "DELETE", f"{{workspaceId}}/topics/{topic_name}")
+async def _delete_topic(ctx: Context, workspace_id: str, topic_name: str):
+    return await make_quix_request(ctx, "DELETE", f"{{workspaceId}}/topics/{topic_name}", workspace_id=workspace_id)
 
-async def _clean_topic(ctx: Context, topic_name: str):
-    return await make_quix_request(ctx, "POST", f"{{workspaceId}}/topics/{topic_name}/clean")
+async def _clean_topic(ctx: Context, workspace_id: str, topic_name: str):
+    return await make_quix_request(ctx, "POST", f"{{workspaceId}}/topics/{topic_name}/clean", workspace_id=workspace_id)
 
 
 # --- New High-Level MCP Tools ---
 
-async def find_topics(ctx: Context) -> str:
+async def find_topics(ctx: Context, workspace_id: str) -> str:
+    """
+    <usecase>
+    Finds and lists all Kafka topics in a specific workspace.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    </instructions>
+    """
     try:
-        topics = await _get_topics(ctx)
+        topics = await _get_topics(ctx, workspace_id)
         if not topics:
-            return "No topics found. You can create one with `manage_topic(action='create', name='...')`."
+            return f"No topics found in workspace '{workspace_id}'. You can create one with `manage_topic(workspace_id='{workspace_id}', action='create', name='...')`."
 
-        result = "Found the following topics:\n\n"
+        result = f"Found the following topics in workspace '{workspace_id}':\n\n"
         for topic in topics:
             result += f"- Name: {topic.get('name')}\n  ID: {topic.get('id')}\n  Status: {topic.get('status')}\n"
         
-        result += "\nTo get more details, use `get_topic_details(topic_name='...')`."
+        result += f"\nTo get more details, use `get_topic_details(workspace_id='{workspace_id}', topic_name='...')`."
         return result
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        return f"Error finding topics. Please check your workspace credentials and network connection. If no topics exist, you can create one with `manage_topic(action='create', name='my-topic')`. Original error: {str(e)}"
+        return f"Error finding topics in workspace '{workspace_id}'. Please check your workspace credentials and network connection. If no topics exist, you can create one with `manage_topic(workspace_id='{workspace_id}', action='create', name='my-topic')`. Original error: {str(e)}"
 
-async def get_topic_details(ctx: Context, topic_name: str) -> str:
+async def get_topic_details(ctx: Context, workspace_id: str, topic_name: str) -> str:
+    """
+    <usecase>
+    Retrieves detailed information about a specific Kafka topic including its configuration and status.
+    </usecase>
+    <instructions>
+    You must provide both a valid 'workspace_id' and 'topic_name'. If you don't know these, use 'find_workspaces()' and 'find_topics()' first.
+    </instructions>
+    """
     try:
-        topic = await _get_topic(ctx, topic_name)
+        topic = await _get_topic(ctx, workspace_id, topic_name)
         if not topic:
             return f"Topic '{topic_name}' not found."
 
@@ -66,15 +82,24 @@ async def get_topic_details(ctx: Context, topic_name: str) -> str:
         return result
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        return f"Error getting details for topic '{topic_name}'. The topic name might be incorrect or the topic may not exist. Try using `find_topics()` to get a list of valid topic names. Original error: {str(e)}"
+        return f"Error getting details for topic '{topic_name}' in workspace '{workspace_id}'. The names might be incorrect or the topic may not exist. Try using `find_topics(workspace_id='{workspace_id}')` to get a list of valid topic names. Original error: {str(e)}"
 
 async def manage_topic(
-    ctx: Context, 
+    ctx: Context,
+    workspace_id: str,
     action: TopicAction,
     name: str,
     partitions: Optional[int] = None,
     retention_in_minutes: Optional[int] = None
 ) -> str:
+    """
+    <usecase>
+    Manages Kafka topic lifecycle operations including creating, updating, deleting, and cleaning topics.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    </instructions>
+    """
     try:
         if action == TopicAction.create:
             payload = {"name": name}
@@ -83,8 +108,8 @@ async def manage_topic(
             if retention_in_minutes: config["retentionInMinutes"] = retention_in_minutes
             if config: payload["configuration"] = config
             
-            topic = await _create_topic(ctx, payload)
-            return f"Topic '{topic.get('name')}' created successfully with ID '{topic.get('id')}'. You can now use it as an input or output for an application."
+            topic = await _create_topic(ctx, workspace_id, payload)
+            return f"Topic '{topic.get('name')}' created successfully with ID '{topic.get('id')}' in workspace '{workspace_id}'. You can now use it as an input or output for an application."
 
         if action == TopicAction.update:
             payload = {}
@@ -92,15 +117,15 @@ async def manage_topic(
             if retention_in_minutes: payload["retentionInMinutes"] = retention_in_minutes
             if not payload:
                 return "Error: At least one field (partitions or retention_in_minutes) must be provided for an update."
-            await _update_topic(ctx, name, payload)
+            await _update_topic(ctx, workspace_id, name, payload)
             return f"Topic '{name}' updated successfully."
 
         if action == TopicAction.clean:
-            await _clean_topic(ctx, name)
+            await _clean_topic(ctx, workspace_id, name)
             return f"All messages in topic '{name}' have been cleared."
 
         if action == TopicAction.delete:
-            await _delete_topic(ctx, name)
+            await _delete_topic(ctx, workspace_id, name)
             return f"Topic '{name}' has been deleted successfully."
 
     except QuixApiError as e:

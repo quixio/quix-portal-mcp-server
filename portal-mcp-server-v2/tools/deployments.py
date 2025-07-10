@@ -16,35 +16,44 @@ class DeploymentAction(str, Enum):
 
 # --- Internal Helper Functions ---
 
-async def _get_deployments(ctx: Context, application_id: Optional[str]) -> List[Dict[str, Any]]:
+async def _get_deployments(ctx: Context, workspace_id: str, application_id: Optional[str]) -> List[Dict[str, Any]]:
     params = {}
     if application_id:
         params["applicationId"] = application_id
-    return await make_quix_request(ctx, "GET", "workspaces/{workspaceId}/deployments", params=params)
+    return await make_quix_request(ctx, "GET", "workspaces/{workspaceId}/deployments", workspace_id=workspace_id, params=params)
 
-async def _get_deployment(ctx: Context, deployment_id: str) -> Dict[str, Any]:
-    return await make_quix_request(ctx, "GET", f"deployments/{deployment_id}")
+async def _get_deployment(ctx: Context, workspace_id: str, deployment_id: str) -> Dict[str, Any]:
+    return await make_quix_request(ctx, "GET", f"deployments/{deployment_id}", workspace_id=workspace_id)
 
-async def _create_deployment(ctx: Context, payload: Dict[str, Any]) -> Dict[str, Any]:
-    return await make_quix_request(ctx, "POST", "deployments", json=payload)
+async def _create_deployment(ctx: Context, workspace_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    return await make_quix_request(ctx, "POST", "deployments", workspace_id=workspace_id, json=payload)
 
-async def _start_deployment(ctx: Context, deployment_id: str):
-    return await make_quix_request(ctx, "PUT", f"deployments/{deployment_id}/start")
+async def _start_deployment(ctx: Context, workspace_id: str, deployment_id: str):
+    return await make_quix_request(ctx, "PUT", f"deployments/{deployment_id}/start", workspace_id=workspace_id)
 
-async def _stop_deployment(ctx: Context, deployment_id: str):
-    return await make_quix_request(ctx, "PUT", f"deployments/{deployment_id}/stop")
+async def _stop_deployment(ctx: Context, workspace_id: str, deployment_id: str):
+    return await make_quix_request(ctx, "PUT", f"deployments/{deployment_id}/stop", workspace_id=workspace_id)
 
-async def _delete_deployment(ctx: Context, deployment_id: str):
-    return await make_quix_request(ctx, "DELETE", f"deployments/{deployment_id}")
+async def _delete_deployment(ctx: Context, workspace_id: str, deployment_id: str):
+    return await make_quix_request(ctx, "DELETE", f"deployments/{deployment_id}", workspace_id=workspace_id)
 
 # --- New High-Level MCP Tools ---
 
-async def find_deployments(ctx: Context, application_name: Optional[str] = None, status: Optional[str] = None) -> str:
+async def find_deployments(ctx: Context, workspace_id: str, application_name: Optional[str] = None, status: Optional[str] = None) -> str:
+    """
+    <usecase>
+    Finds and lists deployments in a specific workspace. Use this to get an overview of running services or to find a specific deployment_id.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    You can optionally filter by 'application_name' or 'status'.
+    </instructions>
+    """
     try:
         # Note: The API doesn't directly support filtering by app name or status.
         # This implementation fetches all and filters locally.
         # For a production server, this might need optimization or an API change.
-        all_deployments = await _get_deployments(ctx, None)
+        all_deployments = await _get_deployments(ctx, workspace_id, None)
 
         if not all_deployments:
             return "No deployments found in this workspace. You can create one with `manage_deployment(action='create', ...)`."
@@ -62,16 +71,24 @@ async def find_deployments(ctx: Context, application_name: Optional[str] = None,
         for d in filtered_deployments:
             result += f"- Name: {d.get('name')}\n  ID: {d.get('deploymentId')}\n  Status: {d.get('status')}\n  App: {d.get('applicationName')}\n"
         
-        result += "\nTo get more details, use `get_deployment_details(deployment_id='...')`."
-        result += "\nTo manage a deployment, use `manage_deployment(deployment_id='...', action='...')`."
+        result += f"\nTo get more details, use `get_deployment_details(workspace_id='{workspace_id}', deployment_id='...')`."
+        result += f"\nTo manage a deployment, use `manage_deployment(workspace_id='{workspace_id}', deployment_id='...', action='...')`."
         return result
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        return f"Error finding deployments. Please check your workspace credentials and network connection. If no deployments exist, you can create one with `manage_deployment(action='create', application_id='...', name='...')`. Original error: {str(e)}"
+        return f"Error finding deployments in workspace '{workspace_id}'. Please check your workspace credentials and network connection. If no deployments exist, you can create one with `manage_deployment(workspace_id='{workspace_id}', action='create', application_id='...', name='...')`. Original error: {str(e)}"
 
-async def get_deployment_details(ctx: Context, deployment_id: str) -> str:
+async def get_deployment_details(ctx: Context, workspace_id: str, deployment_id: str) -> str:
+    """
+    <usecase>
+    Retrieves detailed information about a specific deployment including its status, configuration, and resource usage.
+    </usecase>
+    <instructions>
+    You must provide both a valid 'workspace_id' and 'deployment_id'. If you don't know these IDs, use 'find_workspaces()' and 'find_deployments()' first.
+    </instructions>
+    """
     try:
-        deployment = await _get_deployment(ctx, deployment_id)
+        deployment = await _get_deployment(ctx, workspace_id, deployment_id)
         if not deployment:
             return f"Deployment with ID '{deployment_id}' not found."
 
@@ -92,14 +109,15 @@ async def get_deployment_details(ctx: Context, deployment_id: str) -> str:
                     val = '[SECRET]'
                 result += f"  - {name}: {val}\n"
         
-        result += "\nTo see logs, use `get_deployment_logs(deployment_id='...')`."
+        result += f"\nTo see logs, use `get_deployment_logs(workspace_id='{workspace_id}', deployment_id='{deployment_id}')`."
         return result
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        return f"Error getting details for deployment '{deployment_id}'. The ID might be incorrect or the deployment may not exist. Try using `find_deployments()` to get a list of valid deployment IDs. Original error: {str(e)}"
+        return f"Error getting details for deployment '{deployment_id}' in workspace '{workspace_id}'. The IDs might be incorrect or the deployment may not exist. Try using `find_deployments(workspace_id='{workspace_id}')` to get a list of valid deployment IDs. Original error: {str(e)}"
 
 async def manage_deployment(
     ctx: Context,
+    workspace_id: str,
     action: DeploymentAction,
     deployment_id: Optional[str] = None,
     application_id: Optional[str] = None,
@@ -108,35 +126,43 @@ async def manage_deployment(
     cpu_millicores: int = 1000,
     memory_in_mb: int = 1024
 ) -> str:
+    """
+    <usecase>
+    Manages deployment lifecycle operations including creating, starting, stopping, and deleting deployments.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    </instructions>
+    """
     try:
         if action == DeploymentAction.create:
             if not application_id or not name:
                 return "Error: 'application_id' and 'name' are required to create a deployment."
             payload = {
-                "workspaceId": os.environ.get("QUIX_WORKSPACE"),
+                "workspaceId": workspace_id,
                 "applicationId": application_id,
                 "name": name,
                 "replicas": replicas,
                 "cpuMillicores": cpu_millicores,
                 "memoryInMb": memory_in_mb,
             }
-            deployment = await _create_deployment(ctx, payload)
+            deployment = await _create_deployment(ctx, workspace_id, payload)
             new_id = deployment.get('deploymentId')
-            return f"Deployment '{name}' is being created with ID '{new_id}'. Its status is '{deployment.get('status')}'. Check its progress with `get_deployment_details(deployment_id='{new_id}')`."
+            return f"Deployment '{name}' is being created with ID '{new_id}' in workspace '{workspace_id}'. Its status is '{deployment.get('status')}'. Check its progress with `get_deployment_details(workspace_id='{workspace_id}', deployment_id='{new_id}')`."
 
         if not deployment_id:
             return f"Error: 'deployment_id' is required for '{action.value}' action."
 
         if action == DeploymentAction.start:
-            await _start_deployment(ctx, deployment_id)
-            return f"Deployment '{deployment_id}' has been started. Use `get_deployment_details` to check its status."
+            await _start_deployment(ctx, workspace_id, deployment_id)
+            return f"Deployment '{deployment_id}' has been started. Use `get_deployment_details(workspace_id='{workspace_id}', deployment_id='{deployment_id}')` to check its status."
         
         if action == DeploymentAction.stop:
-            await _stop_deployment(ctx, deployment_id)
-            return f"Deployment '{deployment_id}' has been stopped. Use `get_deployment_details` to check its status."
+            await _stop_deployment(ctx, workspace_id, deployment_id)
+            return f"Deployment '{deployment_id}' has been stopped. Use `get_deployment_details(workspace_id='{workspace_id}', deployment_id='{deployment_id}')` to check its status."
 
         if action == DeploymentAction.delete:
-            await _delete_deployment(ctx, deployment_id)
+            await _delete_deployment(ctx, workspace_id, deployment_id)
             return f"Deployment '{deployment_id}' has been deleted successfully."
         
         if action == DeploymentAction.update:

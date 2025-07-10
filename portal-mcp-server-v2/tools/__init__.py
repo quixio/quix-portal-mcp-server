@@ -3,6 +3,7 @@
 from . import applications
 from . import deployments
 from . import library
+from . import sessions
 from . import topics
 from . import base
 
@@ -10,6 +11,7 @@ __all__ = [
     "applications",
     "deployments", 
     "library",
+    "sessions",
     "topics",
     "base"
 ]

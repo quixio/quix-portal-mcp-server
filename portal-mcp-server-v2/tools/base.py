@@ -98,6 +98,7 @@ async def make_quix_request(
     ctx: Context,
     method: str,
     path: str,
+    workspace_id: Optional[str] = None,
     json: Dict[str, Any] = None,
     params: Dict[str, Any] = None,
     headers: Dict[str, Any] = None,
@@ -106,7 +107,6 @@ async def make_quix_request(
     # Get environment variables
     token = os.environ.get("QUIX_TOKEN")
     base_url = os.environ.get("QUIX_BASE_URL")
-    workspace_id = os.environ.get("QUIX_WORKSPACE")
     
     if not token:
         raise QuixApiError("Missing QUIX_TOKEN environment variable. Please set your Quix Personal Access Token.")
@@ -115,7 +115,7 @@ async def make_quix_request(
         raise QuixApiError("Missing QUIX_BASE_URL environment variable. Please set your Quix Base URL (e.g. https://portal-myenv.platform.quix.io/).")
     
     if not workspace_id and "{workspaceId}" in path:
-        raise QuixApiError("Missing QUIX_WORKSPACE environment variable. Please set your Quix Workspace ID.")
+        raise QuixApiError("Missing workspace_id parameter. Please provide a workspace_id for this operation. If you don't know your workspace ID, use the 'list_workspaces' tool to find available workspaces.")
     
     # Replace workspace_id in path if present
     if workspace_id and "{workspaceId}" in path:

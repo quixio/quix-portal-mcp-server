@@ -14,51 +14,67 @@ class ApplicationAction(str, Enum):
 
 # --- Internal Helper Functions (original functions, now private) ---
 
-async def _list_applications(ctx: Context, search: Optional[str] = None) -> List[Dict[str, Any]]:
+async def _list_applications(ctx: Context, workspace_id: str, search: Optional[str] = None) -> List[Dict[str, Any]]:
     params = {}
     if search:
         params["search"] = search
-    return await make_quix_request(ctx, "GET", "{workspaceId}/applications", params=params)
+    return await make_quix_request(ctx, "GET", "{workspaceId}/applications", workspace_id=workspace_id, params=params)
 
-async def _get_application(ctx: Context, application_id: str) -> Dict[str, Any]:
-    return await make_quix_request(ctx, "GET", f"{{workspaceId}}/applications/{application_id}")
+async def _get_application(ctx: Context, workspace_id: str, application_id: str) -> Dict[str, Any]:
+    return await make_quix_request(ctx, "GET", f"{{workspaceId}}/applications/{application_id}", workspace_id=workspace_id)
 
-async def _create_application(ctx: Context, name: str, path: Optional[str], language: Optional[str]) -> Dict[str, Any]:
+async def _create_application(ctx: Context, workspace_id: str, name: str, path: Optional[str], language: Optional[str]) -> Dict[str, Any]:
     payload = {"applicationName": name, "path": path, "language": language}
-    return await make_quix_request(ctx, "POST", "{workspaceId}/applications", json=payload)
+    return await make_quix_request(ctx, "POST", "{workspaceId}/applications", workspace_id=workspace_id, json=payload)
 
-async def _update_application(ctx: Context, application_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    return await make_quix_request(ctx, "PATCH", f"{{workspaceId}}/applications/{application_id}", json=payload)
+async def _update_application(ctx: Context, workspace_id: str, application_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    return await make_quix_request(ctx, "PATCH", f"{{workspaceId}}/applications/{application_id}", workspace_id=workspace_id, json=payload)
 
-async def _delete_application(ctx: Context, application_id: str, delete_files: bool):
+async def _delete_application(ctx: Context, workspace_id: str, application_id: str, delete_files: bool):
     params = {"deleteFiles": str(delete_files).lower()}
-    return await make_quix_request(ctx, "DELETE", f"{{workspaceId}}/applications/{application_id}", params=params)
+    return await make_quix_request(ctx, "DELETE", f"{{workspaceId}}/applications/{application_id}", workspace_id=workspace_id, params=params)
 
-async def _duplicate_application(ctx: Context, application_id: str, new_name: str, new_path: Optional[str]) -> Dict[str, Any]:
+async def _duplicate_application(ctx: Context, workspace_id: str, application_id: str, new_name: str, new_path: Optional[str]) -> Dict[str, Any]:
     payload = {"name": new_name, "path": new_path}
-    return await make_quix_request(ctx, "POST", f"{{workspaceId}}/applications/{application_id}/duplicate", json=payload)
+    return await make_quix_request(ctx, "POST", f"{{workspaceId}}/applications/{application_id}/duplicate", workspace_id=workspace_id, json=payload)
 
 # --- New High-Level MCP Tools ---
 
-async def find_applications(ctx: Context, search: Optional[str] = None) -> str:
+async def find_applications(ctx: Context, workspace_id: str, search: Optional[str] = None) -> str:
+    """
+    <usecase>
+    Finds and lists applications in a specific workspace. Use this to discover available applications for deployment or management.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    </instructions>
+    """
     try:
-        applications = await _list_applications(ctx, search)
+        applications = await _list_applications(ctx, workspace_id, search)
         if not applications:
-            return "No applications found. You can create one with `manage_application(action='create', ...)`."
+            return f"No applications found in workspace '{workspace_id}'. You can create one with `manage_application(workspace_id='{workspace_id}', action='create', ...)`."
         
-        result = "Found the following applications:\n\n"
+        result = f"Found the following applications in workspace '{workspace_id}':\n\n"
         for app in applications:
             result += f"- Name: {app.get('name')}\n  ID: {app.get('applicationId')}\n  Path: {app.get('path')}\n  Status: {app.get('status', 'N/A')}\n"
         
-        result += "\nTo see more details, use `get_application_details(application_id='...')`."
+        result += f"\nTo see more details, use `get_application_details(workspace_id='{workspace_id}', application_id='...')`."
         return result
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        return f"Error finding applications. Please check your workspace credentials and network connection. If the workspace is empty, you can create your first application with `manage_application(action='create', name='my-app')`. Original error: {str(e)}"
+        return f"Error finding applications in workspace '{workspace_id}'. Please check your workspace credentials and network connection. If the workspace is empty, you can create your first application with `manage_application(workspace_id='{workspace_id}', action='create', name='my-app')`. Original error: {str(e)}"
 
-async def get_application_details(ctx: Context, application_id: str) -> str:
+async def get_application_details(ctx: Context, workspace_id: str, application_id: str) -> str:
+    """
+    <usecase>
+    Retrieves detailed information about a specific application including its configuration, variables, and current status.
+    </usecase>
+    <instructions>
+    You must provide both a valid 'workspace_id' and 'application_id'. If you don't know these IDs, use 'find_workspaces()' and 'find_applications()' first.
+    </instructions>
+    """
     try:
-        app = await _get_application(ctx, application_id)
+        app = await _get_application(ctx, workspace_id, application_id)
         if not app:
             return f"Application with ID '{application_id}' not found."
 
@@ -76,15 +92,16 @@ async def get_application_details(ctx: Context, application_id: str) -> str:
             for var in variables:
                 result += f"  - {var.get('name')}: (Type: {var.get('inputType')}, Default: {var.get('defaultValue', 'None')})\n"
         
-        result += "\nTo modify this application, use `manage_application(action='update', ...)`."
-        result += "\nTo deploy this application, use `manage_deployment(action='create', application_id='...', ...)`."
+        result += f"\nTo modify this application, use `manage_application(workspace_id='{workspace_id}', action='update', ...)`."
+        result += f"\nTo deploy this application, use `manage_deployment(workspace_id='{workspace_id}', action='create', application_id='{application_id}', ...)`."
         return result
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        return f"Error getting details for application '{application_id}'. The ID might be incorrect or the application may not exist. Try using `find_applications()` to get a list of valid application IDs. Original error: {str(e)}"
+        return f"Error getting details for application '{application_id}' in workspace '{workspace_id}'. The IDs might be incorrect or the application may not exist. Try using `find_applications(workspace_id='{workspace_id}')` to get a list of valid application IDs. Original error: {str(e)}"
 
 async def manage_application(
-    ctx: Context, 
+    ctx: Context,
+    workspace_id: str,
     action: ApplicationAction,
     application_id: Optional[str] = None,
     name: Optional[str] = None,
@@ -92,12 +109,20 @@ async def manage_application(
     language: Optional[str] = None,
     delete_files: bool = True
 ) -> str:
+    """
+    <usecase>
+    Manages application lifecycle operations including creating, updating, deleting, and duplicating applications.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    </instructions>
+    """
     try:
         if action == ApplicationAction.create:
             if not name:
                 return "Error: 'name' is required to create an application."
-            app = await _create_application(ctx, name, path, language)
-            return f"Application '{app.get('name')}' created successfully with ID '{app.get('applicationId')}'. You can now deploy it using `manage_deployment`."
+            app = await _create_application(ctx, workspace_id, name, path, language)
+            return f"Application '{app.get('name')}' created successfully with ID '{app.get('applicationId')}' in workspace '{workspace_id}'. You can now deploy it using `manage_deployment`."
         
         if not application_id:
             return f"Error: 'application_id' is required for '{action.value}' action."
@@ -106,17 +131,17 @@ async def manage_application(
             payload = {k: v for k, v in {"applicationName": name, "applicationPath": path, "language": language}.items() if v is not None}
             if not payload:
                 return "Error: At least one field (name, path, or language) must be provided for an update."
-            app = await _update_application(ctx, application_id, payload)
+            app = await _update_application(ctx, workspace_id, application_id, payload)
             return f"Application '{app.get('name')}' updated successfully."
 
         if action == ApplicationAction.duplicate:
             if not name:
                 return "Error: A 'name' for the new duplicated application is required."
-            app = await _duplicate_application(ctx, application_id, name, path)
+            app = await _duplicate_application(ctx, workspace_id, application_id, name, path)
             return f"Application duplicated to '{app.get('name')}' with new ID '{app.get('applicationId')}'."
 
         if action == ApplicationAction.delete:
-            await _delete_application(ctx, application_id, delete_files)
+            await _delete_application(ctx, workspace_id, application_id, delete_files)
             return f"Application '{application_id}' deleted successfully."
             
     except QuixApiError as e:
@@ -130,12 +155,21 @@ async def manage_application(
 
 async def set_application_topics(
     ctx: Context,
+    workspace_id: str,
     application_id: str,
     input_topic: Optional[str] = None,
     output_topic: Optional[str] = None
 ) -> str:
+    """
+    <usecase>
+    Sets input and/or output topics for an application. This is a simplified helper for configuring topic connections.
+    </usecase>
+    <instructions>
+    You must provide valid 'workspace_id' and 'application_id'. If you don't know these IDs, use 'find_workspaces()' and 'find_applications()' first.
+    </instructions>
+    """
     try:
-        current_app = await _get_application(ctx, application_id)
+        current_app = await _get_application(ctx, workspace_id, application_id)
         existing_variables = current_app.get('variables', [])
         
         # Create a dictionary for easy update
@@ -152,15 +186,15 @@ async def set_application_topics(
         
         updated_vars = list(vars_dict.values())
         
-        await _update_application(ctx, application_id, {"variables": updated_vars})
+        await _update_application(ctx, workspace_id, application_id, {"variables": updated_vars})
         
         response = f"Topics for application '{current_app.get('name')}' configured.\n"
         if input_topic:
             response += f"Input topic set to: '{input_topic}'\n"
         if output_topic:
             response += f"Output topic set to: '{output_topic}'\n"
-        response += "You can now deploy this application using `manage_deployment`."
+        response += f"You can now deploy this application using `manage_deployment(workspace_id='{workspace_id}', ...)`."
         return response
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        return f"Error setting topics for application '{application_id}'. Please ensure the application ID is correct and the topic names are valid. You can list applications with `find_applications()` and topics with `find_topics()`. Original error: {str(e)}"
+        return f"Error setting topics for application '{application_id}' in workspace '{workspace_id}'. Please ensure the IDs are correct and the topic names are valid. You can list applications with `find_applications(workspace_id='{workspace_id}')` and topics with `find_topics(workspace_id='{workspace_id}')`. Original error: {str(e)}"
