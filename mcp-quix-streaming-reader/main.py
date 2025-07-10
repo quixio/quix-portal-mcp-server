@@ -70,7 +70,7 @@ async def infer_topic_schema(
     For workspaces: use find_workspaces() to list all workspaces in the org.
     For topics: use find_topics() to list all topics in the workspace (you need to know the workspace first).
     Note that the topic ID uses the pattern {workspaceId} + "-" + "topicName". Example: "demo-myworkspace-myenv-mytopicname"
-    The tool will return the message sample 100 most recent messages to you, which you should then use 
+    The tool will return the message sample 10 most recent messages to you, which you should then use 
     to infer the schema.
     </instructions>
     
@@ -102,7 +102,7 @@ async def infer_topic_schema(
         return [UserMessage(f"An unexpected error occurred: {str(e)}")]
 
     system_prompt = (
-        "The following data is a sample of 100 most recent messages from a Kafka topic, "
+        "The following data is a sample of 10 most recent messages from a Kafka topic, "
         "can you use this sample to infer the overall schema of the topic while noting any exceptions? "
         "Note that later, we'll be using this schema definition to write the data into an external destination, "
         "so it needs to be precise. Please return the result in JSON schema format, and ask the user to confirm "
