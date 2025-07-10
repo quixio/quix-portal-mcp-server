@@ -6,10 +6,6 @@ variables:
     multiline: false
     defaultValue: API_PAT
     required: true
-  - name: QUIX_WORKSPACE
-    inputType: FreeText
-    multiline: false
-    defaultValue: demo-webinarsolarfarm-btestv1
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py
