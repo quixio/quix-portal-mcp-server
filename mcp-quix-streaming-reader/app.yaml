@@ -6,10 +6,6 @@ variables:
     multiline: false
     defaultValue: API_PAT
     required: true
-  - name: QUIX_BASE_URL
-    inputType: FreeText
-    multiline: false
-    defaultValue: https://portal-api.demo.quix.io/
   - name: QUIX_WORKSPACE
     inputType: FreeText
     multiline: false
