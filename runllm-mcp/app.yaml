@@ -1,4 +1,4 @@
-name: MCP_RunLLM
+name: MCP RunLLM
 language: python
 variables:
   - name: RUNLLM_API_KEY
