@@ -10,10 +10,6 @@ variables:
     inputType: FreeText
     multiline: false
     defaultValue: https://portal-api.demo.quix.io/
-  - name: QUIX_WORKSPACE
-    inputType: FreeText
-    multiline: false
-    defaultValue: demo-solarfarmdatageneratordemo-prod
 dockerfile: dockerfile
 runEntryPoint: main.py
 defaultFile: main.py
