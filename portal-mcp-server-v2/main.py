@@ -105,6 +105,36 @@ async def set_application_topics(
     """
     return await applications.set_application_topics(ctx, workspace_id, application_id, input_topic, output_topic)
 
+@mcp.tool()
+async def update_application_variables(
+    ctx: Context, 
+    workspace_id: str,
+    application_id: str, 
+    variables: List[Dict[str, Any]],
+    append: bool = True
+) -> str:
+    """
+    <usecase>
+    Updates the environment variables for an application. This is crucial for configuring database connections, API keys, and other runtime settings.
+    </usecase>
+    <instructions>
+    You must provide valid 'workspace_id' and 'application_id'. If you don't know these IDs, use 'find_workspaces()' and 'find_applications()' first.
+    - 'variables': List of environment variables to set, following the ApplicationVariable schema.
+        Each variable must include:
+            - name: Name of the variable
+            - inputType: One of "Topic", "FreeText", "HiddenText", "InputTopic", "OutputTopic", "Secret"
+            - required: Whether the variable is mandatory (true/false)
+        Optional fields:
+            - multiline: Whether the variable value can be multiline (true/false)
+            - description: Description of the variable
+            - defaultValue: Default value for the variable (IMPORTANT: Use "defaultValue", NOT "value")
+    - 'append': Whether to append these variables to existing ones (True) or replace them all (False).
+        When append=True (default), existing variables are preserved and new ones are added.
+        When append=False, only the provided variables will be kept (all others will be removed).
+    </instructions>
+    """
+    return await applications.update_application_variables(ctx, workspace_id, application_id, variables, append)
+
 
 # =========================================
 # Deployment Management Tools

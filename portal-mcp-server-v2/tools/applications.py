@@ -263,3 +263,109 @@ async def set_application_topics(
     except QuixApiError as e:
         # --- Guided Error Handling ---
         return f"Error setting topics for application '{application_id}' in workspace '{workspace_id}'. Please ensure the IDs are correct and the topic names are valid. You can list applications with `find_applications(workspace_id='{workspace_id}')` and topics with `find_topics(workspace_id='{workspace_id}')`. Original error: {str(e)}"
+
+async def update_application_variables(
+    ctx: Context, 
+    workspace_id: str,
+    application_id: str, 
+    variables: List[Dict[str, Any]],
+    append: bool = True
+) -> str:
+    """
+    <usecase>
+    Updates the environment variables for an application. This is crucial for configuring database connections, API keys, and other runtime settings.
+    </usecase>
+    <instructions>
+    You must provide valid 'workspace_id' and 'application_id'. If you don't know these IDs, use 'find_workspaces()' and 'find_applications()' first.
+    - 'variables': List of environment variables to set, following the ApplicationVariable schema.
+        Each variable must include:
+            - name: Name of the variable
+            - inputType: One of "Topic", "FreeText", "HiddenText", "InputTopic", "OutputTopic", "Secret"
+            - required: Whether the variable is mandatory (true/false)
+        Optional fields:
+            - multiline: Whether the variable value can be multiline (true/false)
+            - description: Description of the variable
+            - defaultValue: Default value for the variable (IMPORTANT: Use "defaultValue", NOT "value")
+    - 'append': Whether to append these variables to existing ones (True) or replace them all (False).
+        When append=True (default), existing variables are preserved and new ones are added.
+        When append=False, only the provided variables will be kept (all others will be removed).
+    </instructions>
+    """
+    try:
+        # Validate the input variables
+        valid_input_types = ["Topic", "FreeText", "HiddenText", "InputTopic", "OutputTopic", "Secret"]
+        
+        for var in variables:
+            # Check for required fields
+            if "name" not in var:
+                return f"Error: Missing 'name' field in variable {var}"
+                
+            if "inputType" not in var:
+                return f"Error: Missing 'inputType' field in variable '{var.get('name')}'"
+                
+            if var.get("inputType") not in valid_input_types:
+                return f"Error: Invalid 'inputType' value '{var.get('inputType')}' for variable '{var.get('name')}'. Must be one of: {', '.join(valid_input_types)}"
+                
+            if "required" not in var:
+                return f"Error: Missing 'required' field in variable '{var.get('name')}'"
+        
+        # Get the current application details
+        current_app = await _get_application(ctx, workspace_id, application_id)
+        if not current_app:
+            return f"No application found with ID {application_id}."
+        
+        # Determine the final set of variables to apply
+        final_variables = []
+        
+        if append:
+            # Get existing variables
+            existing_variables = current_app.get('variables', [])
+            
+            # Create a lookup of new variable names for quick checking
+            new_variable_names = {var.get('name'): var for var in variables}
+            
+            # Start with existing variables that aren't being updated
+            for var in existing_variables:
+                var_name = var.get('name')
+                if var_name not in new_variable_names:
+                    final_variables.append(var)
+                
+            # Add all new variables
+            final_variables.extend(variables)
+            
+            operation_description = "updated/added"
+        else:
+            # Complete replacement
+            final_variables = variables
+            operation_description = "replaced all with new"
+        
+        # Update the application
+        await _update_application(ctx, workspace_id, application_id, {"variables": final_variables})
+        
+        # Format the response
+        result = f"Successfully {operation_description} environment variables for application '{current_app.get('name')}' (ID: {application_id}):\n\n"
+        
+        # Show the variables that were just modified/added
+        result += "Modified/Added Variables:\n"
+        for var in variables:
+            result += f"• {var.get('name')} ({var.get('inputType')})\n"
+            
+            if var.get('description'):
+                result += f"  Description: {var.get('description')}\n"
+                
+            if var.get('defaultValue'):
+                result += f"  Default Value: {var.get('defaultValue')}\n"
+                
+            result += f"  Required: {var.get('required')}\n"
+            
+            if var.get('multiline'):
+                result += f"  Multiline: {var.get('multiline')}\n"
+                
+            result += "\n"
+        
+        # Show total count
+        result += f"Total environment variables: {len(final_variables)}"
+        
+        return result
+    except QuixApiError as e:
+        return f"Error updating application variables: {str(e)}"
