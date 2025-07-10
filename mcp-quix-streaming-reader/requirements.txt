@@ -1,5 +1,4 @@
-mcp[cli]>=0.3.0
-httpx>=0.24.0
-uvicorn>=0.22.0
-starlette>=0.28.0
-python-dotenv>=1.0.0
+mcp[cli]
+httpx
+pydantic-settings
+python-dotenv
