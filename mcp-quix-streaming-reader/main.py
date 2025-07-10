@@ -86,7 +86,7 @@ async def infer_topic_schema(
         "topicId": topic_id,
         "partition": 0,
         "offset": "Newest",
-        "maxResults": 100
+        "maxResults": 10
     }
 
     try:
