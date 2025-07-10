@@ -130,7 +130,7 @@ async def get_session_details(ctx: Context, workspace_id: str, session_id: str) 
     </instructions>
     """
     try:
-        session = await _get_session(ctx, session_id)
+        session = await _get_session(ctx, workspace_id, session_id)
         if not session:
             return f"Session '{session_id}' not found."
 
@@ -206,7 +206,7 @@ async def manage_session(
             if environment_variables:
                 payload["environmentVariables"] = environment_variables
             
-            session = await _create_session(ctx, payload)
+            session = await _create_session(ctx, workspace_id, payload)
             new_session_id = session.get('sessionId')
             
             result = f"IDE session started successfully with ID: {new_session_id}\n"
@@ -222,7 +222,7 @@ async def manage_session(
             if not session_id:
                 return "Error: 'session_id' is required to stop a session."
             
-            await _delete_session(ctx, session_id)
+            await _delete_session(ctx, workspace_id, session_id)
             return f"Session '{session_id}' has been stopped successfully and resources have been released."
             
     except QuixApiError as e:
@@ -236,6 +236,7 @@ async def manage_session(
 
 async def run_code_in_session(
     ctx: Context,
+    workspace_id: str,
     session_id: str,
     file_to_run: Optional[str] = None,
     force_setup: bool = False
@@ -253,11 +254,11 @@ async def run_code_in_session(
     try:
         # Force setup if requested
         if force_setup:
-            await _setup_session(ctx, session_id, force=True)
+            await _setup_session(ctx, workspace_id, session_id, force=True)
             await ctx.info(f"Forced setup completed for session '{session_id}'.")
         
         # Run the code
-        result = await _run_in_session(ctx, session_id, file_to_run)
+        result = await _run_in_session(ctx, workspace_id, session_id, file_to_run)
         
         response = f"Code execution initiated in session '{session_id}'"
         if file_to_run:
@@ -277,6 +278,7 @@ async def run_code_in_session(
 
 async def update_session_config(
     ctx: Context,
+    workspace_id: str,
     session_id: str,
     action: SessionUpdateAction,
     branch_name: Optional[str] = None,
@@ -308,7 +310,7 @@ async def update_session_config(
             if git_reference:
                 payload["gitReference"] = git_reference
                 
-            await _update_session(ctx, session_id, payload)
+            await _update_session(ctx, workspace_id, session_id, payload)
             return f"Session '{session_id}' branch updated successfully. You may need to run setup again with `run_code_in_session(session_id='{session_id}', force_setup=True)`."
         
         elif action == SessionUpdateAction.update_variables:
@@ -316,7 +318,7 @@ async def update_session_config(
                 return "Error: 'environment_variables' is required for variable update."
             
             payload = {"environmentVariables": environment_variables}
-            await _update_session(ctx, session_id, payload)
+            await _update_session(ctx, workspace_id, session_id, payload)
             return f"Session '{session_id}' environment variables updated successfully."
         
         elif action == SessionUpdateAction.update_application:
@@ -331,14 +333,14 @@ async def update_session_config(
             if not payload:
                 return "Error: At least one application parameter (dockerfile, run_entry_point, or variables) must be provided."
             
-            await _update_session_application(ctx, session_id, payload)
+            await _update_session_application(ctx, workspace_id, session_id, payload)
             return f"Session '{session_id}' application configuration updated successfully."
         
     except QuixApiError as e:
         # --- Guided Error Handling ---
         return f"Error updating session '{session_id}' configuration. Please ensure the session ID is correct and you have the necessary permissions. You can verify the session with `find_sessions()`. Original error: {str(e)}"
 
-async def get_session_application_details(ctx: Context, session_id: str, reference: Optional[str] = None) -> str:
+async def get_session_application_details(ctx: Context, workspace_id: str, session_id: str, reference: Optional[str] = None) -> str:
     """
     <usecase>
     Retrieves detailed application information from an IDE session, including configuration and file structure.
@@ -349,7 +351,7 @@ async def get_session_application_details(ctx: Context, session_id: str, referen
     </instructions>
     """
     try:
-        app_details = await _get_session_application(ctx, session_id, reference)
+        app_details = await _get_session_application(ctx, workspace_id, session_id, reference)
         
         result = f"Application Details for Session '{session_id}':\n\n"
         result += f"Name: {app_details.get('name', 'N/A')}\n"
@@ -375,7 +377,7 @@ async def get_session_application_details(ctx: Context, session_id: str, referen
         # --- Guided Error Handling ---
         return f"Error getting application details for session '{session_id}'. Please ensure the session ID is correct and the session is active. You can verify the session with `find_sessions()`. Original error: {str(e)}"
 
-async def check_session_git_status(ctx: Context, session_id: str, clean_errors: bool = False) -> str:
+async def check_session_git_status(ctx: Context, workspace_id: str, session_id: str, clean_errors: bool = False) -> str:
     """
     <usecase>
     Checks the git status of a session and optionally cleans any git errors. Useful for debugging git-related issues.
@@ -386,7 +388,7 @@ async def check_session_git_status(ctx: Context, session_id: str, clean_errors: 
     </instructions>
     """
     try:
-        git_errors = await _get_git_errors(ctx, session_id)
+        git_errors = await _get_git_errors(ctx, workspace_id, session_id)
         
         if not git_errors:
             return f"Session '{session_id}' has no git errors. Git status is clean."
@@ -402,7 +404,7 @@ async def check_session_git_status(ctx: Context, session_id: str, clean_errors: 
             result += "\n"
         
         if clean_errors:
-            await _clean_git_errors(ctx, session_id)
+            await _clean_git_errors(ctx, workspace_id, session_id)
             result += "Git errors have been cleaned. You can now proceed with your session operations."
         else:
             result += "To clean these errors, run this command again with `clean_errors=True`."
@@ -412,7 +414,7 @@ async def check_session_git_status(ctx: Context, session_id: str, clean_errors: 
         # --- Guided Error Handling ---
         return f"Error checking git status for session '{session_id}'. Please ensure the session ID is correct and the session is active. You can verify the session with `find_sessions()`. Original error: {str(e)}"
 
-async def keep_session_alive(ctx: Context, session_id: str) -> str:
+async def keep_session_alive(ctx: Context, workspace_id: str, session_id: str) -> str:
     """
     <usecase>
     Sends a heartbeat to keep an IDE session alive and prevent it from timing out. Useful for long-running development sessions.
@@ -423,13 +425,13 @@ async def keep_session_alive(ctx: Context, session_id: str) -> str:
     </instructions>
     """
     try:
-        await _heartbeat_session(ctx, session_id)
+        await _heartbeat_session(ctx, workspace_id, session_id)
         return f"Heartbeat sent to session '{session_id}'. Session will remain active for the extended timeout period."
     except QuixApiError as e:
         # --- Guided Error Handling ---
         return f"Error sending heartbeat to session '{session_id}'. The session ID might be incorrect or the session may have already expired. Try using `find_sessions()` to get a list of valid session IDs. Original error: {str(e)}"
 
-async def download_session_code(ctx: Context, session_id: str, reference: Optional[str] = None) -> str:
+async def download_session_code(ctx: Context, workspace_id: str, session_id: str, reference: Optional[str] = None) -> str:
     """
     <usecase>
     Downloads the complete application code from an IDE session as a zip file. Useful for backing up or sharing code.
@@ -441,7 +443,7 @@ async def download_session_code(ctx: Context, session_id: str, reference: Option
     </instructions>
     """
     try:
-        zip_result = await _get_session_zip(ctx, session_id, reference)
+        zip_result = await _get_session_zip(ctx, workspace_id, session_id, reference)
         
         if zip_result:
             return f"Application code from session '{session_id}' is ready for download. The zip file contains all application files and can be used for backup or sharing purposes."
