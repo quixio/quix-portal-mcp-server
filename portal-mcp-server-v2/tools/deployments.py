@@ -177,6 +177,52 @@ async def manage_deployment(
         else:
             return f"Error managing deployment: {str(e)}"
 
+async def create_deployment_from_template(
+    ctx: Context,
+    workspace_id: str,
+    application_id: str,
+    deployment_name: str,
+    replicas: int = 1,
+    cpu_millicores: int = 1000,
+    memory_in_mb: int = 1024
+) -> str:
+    """
+    <usecase>
+    Creates a deployment from an existing application. Use this to deploy applications that were created from templates or any other applications.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id' and 'application_id'. If you don't know these IDs, use 'find_workspaces()' and 'find_applications()' first.
+    - 'deployment_name' is required and must be unique in the workspace.
+    - Resource settings (replicas, cpu_millicores, memory_in_mb) are optional and have sensible defaults.
+    </instructions>
+    """
+    try:
+        await ctx.info(f"Creating deployment '{deployment_name}' for application '{application_id}' in workspace '{workspace_id}'...")
+        
+        payload = {
+            "workspaceId": workspace_id,
+            "applicationId": application_id,
+            "name": deployment_name,
+            "replicas": replicas,
+            "cpuMillicores": cpu_millicores,
+            "memoryInMb": memory_in_mb,
+        }
+        
+        deployment = await _create_deployment(ctx, workspace_id, payload)
+        deployment_id = deployment.get('deploymentId')
+        
+        result = f"Deployment '{deployment_name}' created successfully with ID '{deployment_id}' in workspace '{workspace_id}'.\n"
+        result += f"- Application: {application_id}\n"
+        result += f"- Resources: {cpu_millicores}m CPU, {memory_in_mb}MB RAM, {replicas} replica(s)\n"
+        result += f"- Status: {deployment.get('status')}\n"
+        result += f"\nYou can check its progress with `get_deployment_details(workspace_id='{workspace_id}', deployment_id='{deployment_id}')` or view logs with `get_deployment_logs(deployment_id='{deployment_id}')`."
+        
+        return result
+
+    except QuixApiError as e:
+        # --- Guided Error Handling ---
+        return f"Error creating deployment from application '{application_id}' in workspace '{workspace_id}'. Please ensure the application ID is correct and the deployment name is unique. You can verify the application ID with `find_applications(workspace_id='{workspace_id}')`. Original error: {str(e)}"
+
 async def get_deployment_logs(ctx: Context, deployment_id: str, replica_id: Optional[str] = None, log_type: str = "current") -> str:
     try:
         params = {}

@@ -19,7 +19,7 @@ async def find_in_library(
     <instructions>
     You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
     - 'search_term' is the keyword to search for (e.g., "InfluxDB", "Starter").
-    - 'item_type' can be "source", "transformation", or "destination" to filter results.
+    - 'item_type' can be "Source", "Transformation", or "Destination" to filter results by tag (casing in important for this search).
     </instructions>
     """
     try:
@@ -54,7 +54,8 @@ async def create_pipeline_from_template(
 ) -> str:
     """
     <usecase>
-    Creates and deploys a complete application from a library template. This is the fastest way to set up a new pipeline component like a data source or sink.
+    Creates and deploys a complete application from a library template. This is a legacy function that combines application creation and deployment.
+    For new code, consider using 'create_app_from_template' and 'create_deployment_from_template' separately for more flexibility.
     </usecase>
     <instructions>
     You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
@@ -98,8 +99,8 @@ async def create_pipeline_from_template(
             name=deployment_name
         )
 
-        return f"Successfully initiated pipeline creation from template '{template_id}'.\n{deploy_result_str}"
+        return f"Successfully created complete pipeline from template '{template_id}'. This function now uses create_app_from_template and create_deployment_from_template. For more control over the process, consider using those functions separately.\n{deploy_result_str}"
 
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        return f"Error creating pipeline from template '{template_id}' in workspace '{workspace_id}'. Please ensure the template ID is correct and the application name is unique. You can find valid template IDs with `find_in_library(workspace_id='{workspace_id}', ...)`. If topics are specified, ensure they exist with `find_topics(workspace_id='{workspace_id}')`. Original error: {str(e)}"
+        return f"Error creating pipeline from template '{template_id}' in workspace '{workspace_id}'. Please ensure the template ID is correct and the application name is unique. You can find valid template IDs with `find_in_library(workspace_id='{workspace_id}', ...)`. If topics are specified, ensure they exist with `find_topics(workspace_id='{workspace_id}')`. For more control, consider using `create_app_from_template` and `create_deployment_from_template` separately. Original error: {str(e)}"

@@ -153,6 +153,57 @@ async def manage_application(
         else:
             return f"Error managing application: {str(e)}"
 
+async def create_app_from_template(
+    ctx: Context,
+    workspace_id: str,
+    template_id: str, 
+    application_name: str,
+    input_topic: Optional[str] = None,
+    output_topic: Optional[str] = None,
+    environment_variables: Optional[Dict[str, str]] = None
+) -> str:
+    """
+    <usecase>
+    Creates an application from a library template. Use this to create an application based on a pre-built template from the Quix Library.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    - 'template_id' can be found using the 'find_in_library' tool.
+    - 'application_name' is required and must be unique in the workspace.
+    - Provide 'input_topic' and 'output_topic' if the template requires them.
+    - 'environment_variables' can be used to set any required credentials or configurations for the template.
+    </instructions>
+    """
+    try:
+        await ctx.info(f"Creating application '{application_name}' from template '{template_id}' in workspace '{workspace_id}'...")
+        
+        # Create application from library template
+        create_app_payload = {
+            "workspaceId": workspace_id,
+            "libraryItemId": template_id,
+            "applicationName": application_name,
+            "environmentVariables": environment_variables or {}
+        }
+        app = await make_quix_request(ctx, "POST", "library/application", workspace_id=workspace_id, json=create_app_payload)
+        
+        app_id = app.get('applicationId')
+        if not app_id:
+            raise QuixApiError("Failed to get new application ID after creation.")
+        
+        await ctx.info(f"Application '{application_name}' created with ID '{app_id}'.")
+
+        # Configure topics if provided
+        if input_topic or output_topic:
+            await ctx.info("Configuring topics...")
+            topic_result = await set_application_topics(ctx, workspace_id, app_id, input_topic, output_topic)
+            return f"Application '{application_name}' created successfully with ID '{app_id}' from template '{template_id}' in workspace '{workspace_id}'.\n{topic_result}"
+        
+        return f"Application '{application_name}' created successfully with ID '{app_id}' from template '{template_id}' in workspace '{workspace_id}'. You can now deploy it with `create_deployment_from_template` or `manage_deployment`."
+
+    except QuixApiError as e:
+        # --- Guided Error Handling ---
+        return f"Error creating application from template '{template_id}' in workspace '{workspace_id}'. Please ensure the template ID is correct and the application name is unique. You can find valid template IDs with `find_in_library(workspace_id='{workspace_id}', ...)`. Original error: {str(e)}"
+
 async def set_application_topics(
     ctx: Context,
     workspace_id: str,

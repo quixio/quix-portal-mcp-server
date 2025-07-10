@@ -178,41 +178,67 @@ async def get_deployment_logs(ctx: Context, deployment_id: str, replica_id: Opti
 # =========================================
 
 @mcp.tool()
-async def find_in_library(ctx: Context, search_term: str, item_type: Optional[str] = None) -> str:
+async def find_in_library(ctx: Context, workspace_id: str, search_term: str, item_type: Optional[str] = None) -> str:
     """
     <usecase>
     Searches the Quix Library for templates and connectors. Use this to discover pre-built components for your pipeline.
     </usecase>
     <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
     - 'search_term' is the keyword to search for (e.g., "InfluxDB", "Starter").
-    - 'item_type' can be "source", "transformation", or "destination" to filter results.
+    - 'item_type' can be "Source", "Transformation", or "Destination" to filter results by tag (casing in important for this search).
     </instructions>
     """
-    return await library.find_in_library(ctx, search_term, item_type)
+    return await library.find_in_library(ctx, workspace_id, search_term, item_type)
 
 @mcp.tool()
-async def create_pipeline_from_template(
-    ctx: Context, 
+async def create_app_from_template(
+    ctx: Context,
+    workspace_id: str,
     template_id: str, 
     application_name: str,
-    deployment_name: str,
     input_topic: Optional[str] = None,
     output_topic: Optional[str] = None,
     environment_variables: Optional[Dict[str, str]] = None
 ) -> str:
     """
     <usecase>
-    Creates and deploys a complete application from a library template. This is the fastest way to set up a new pipeline component like a data source or sink.
+    Creates an application from a library template. Use this to create an application based on a pre-built template from the Quix Library.
     </usecase>
     <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
     - 'template_id' can be found using the 'find_in_library' tool.
-    - 'application_name' and 'deployment_name' are required.
+    - 'application_name' is required and must be unique in the workspace.
     - Provide 'input_topic' and 'output_topic' if the template requires them.
     - 'environment_variables' can be used to set any required credentials or configurations for the template.
     </instructions>
     """
-    return await library.create_pipeline_from_template(
-        ctx, template_id, application_name, deployment_name, input_topic, output_topic, environment_variables
+    return await applications.create_app_from_template(
+        ctx, workspace_id, template_id, application_name, input_topic, output_topic, environment_variables
+    )
+
+@mcp.tool()
+async def create_deployment_from_template(
+    ctx: Context,
+    workspace_id: str,
+    application_id: str,
+    deployment_name: str,
+    replicas: int = 1,
+    cpu_millicores: int = 1000,
+    memory_in_mb: int = 1024
+) -> str:
+    """
+    <usecase>
+    Creates a deployment from an existing application. Use this to deploy applications that were created from templates or any other applications.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id' and 'application_id'. If you don't know these IDs, use 'find_workspaces()' and 'find_applications()' first.
+    - 'deployment_name' is required and must be unique in the workspace.
+    - Resource settings (replicas, cpu_millicores, memory_in_mb) are optional and have sensible defaults.
+    </instructions>
+    """
+    return await deployments.create_deployment_from_template(
+        ctx, workspace_id, application_id, deployment_name, replicas, cpu_millicores, memory_in_mb
     )
 
 # =========================================
@@ -220,32 +246,34 @@ async def create_pipeline_from_template(
 # =========================================
 
 @mcp.tool()
-async def find_topics(ctx: Context) -> str:
+async def find_topics(ctx: Context, workspace_id: str) -> str:
     """
     <usecase>
-    Finds and lists all Kafka topics in the current workspace.
+    Finds and lists all Kafka topics in a specific workspace.
     </usecase>
     <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
     This tool lists all topics and their status. Use the topic names as input for other tools.
     </instructions>
     """
-    return await topics.find_topics(ctx)
+    return await topics.find_topics(ctx, workspace_id)
 
 @mcp.tool()
-async def get_topic_details(ctx: Context, topic_name: str) -> str:
+async def get_topic_details(ctx: Context, workspace_id: str, topic_name: str) -> str:
     """
     <usecase>
     Retrieves detailed configuration and status information for a specific topic.
     </usecase>
     <instructions>
-    You must provide a valid 'topic_name', which can be found using the 'find_topics' tool.
+    You must provide a valid 'workspace_id' and 'topic_name'. If you don't know these, use 'find_workspaces()' and 'find_topics()' first.
     </instructions>
     """
-    return await topics.get_topic_details(ctx, topic_name)
+    return await topics.get_topic_details(ctx, workspace_id, topic_name)
 
 @mcp.tool()
 async def manage_topic(
-    ctx: Context, 
+    ctx: Context,
+    workspace_id: str,
     action: topics.TopicAction,
     name: str,
     partitions: Optional[int] = None,
@@ -256,12 +284,13 @@ async def manage_topic(
     Manages Kafka topics. Use this to create, update, clean (delete messages), or delete a topic.
     </usecase>
     <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
     - For 'create', 'name' is required. 'partitions' and 'retention_in_minutes' are optional.
     - For 'update', 'name' is required. Provide 'partitions' or 'retention_in_minutes' to update them.
     - For 'clean' or 'delete', 'name' is required. Confirm with the user before using 'delete' or 'clean'.
     </instructions>
     """
-    return await topics.manage_topic(ctx, action, name, partitions, retention_in_minutes)
+    return await topics.manage_topic(ctx, workspace_id, action, name, partitions, retention_in_minutes)
 
 
 # =========================================
@@ -313,32 +342,34 @@ async def promote_environment(ctx: Context, source_branch: str, target_branch: s
 # =========================================
 
 @mcp.tool()
-async def find_sessions(ctx: Context) -> str:
+async def find_sessions(ctx: Context, workspace_id: str) -> str:
     """
     <usecase>
-    Finds and lists all active IDE sessions for your user. Use this to check if a session is already running or to get a session_id for other tools.
+    Finds and lists all active IDE sessions for a specific workspace. Use this to check if a session is already running or to get a session_id for other tools.
     </usecase>
     <instructions>
-    This tool lists all of your active sessions across all workspaces. Sessions show their application, branch, and resource allocation.
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    This tool lists all active sessions in the specified workspace. Sessions show their application, branch, and resource allocation.
     </instructions>
     """
-    return await sessions.find_sessions(ctx)
+    return await sessions.find_sessions(ctx, workspace_id)
 
 @mcp.tool()
-async def get_session_details(ctx: Context, session_id: str) -> str:
+async def get_session_details(ctx: Context, workspace_id: str, session_id: str) -> str:
     """
     <usecase>
     Retrieves detailed information about a specific IDE session, including its configuration, status, and resource usage.
     </usecase>
     <instructions>
-    You must provide a valid 'session_id', which can be found using the 'find_sessions' tool.
+    You must provide a valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
     </instructions>
     """
-    return await sessions.get_session_details(ctx, session_id)
+    return await sessions.get_session_details(ctx, workspace_id, session_id)
 
 @mcp.tool()
 async def manage_session(
     ctx: Context,
+    workspace_id: str,
     action: sessions.SessionAction,
     application_id: Optional[str] = None,
     session_id: Optional[str] = None,
@@ -354,18 +385,20 @@ async def manage_session(
     Manages an IDE session. Use this to start a new session for an application or to stop an existing one.
     </usecase>
     <instructions>
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
     - To 'start' a session, the 'application_id' is required. You can optionally specify resource allocation, branch, and environment variables.
     - To 'stop' a session, the 'session_id' is required.
     - For public access, provide 'url_prefix' when setting 'public_access' to True.
     </instructions>
     """
     return await sessions.manage_session(
-        ctx, action, application_id, session_id, branch_name, cpu_millicores, memory_in_mb, public_access, url_prefix, environment_variables
+        ctx, workspace_id, action, application_id, session_id, branch_name, cpu_millicores, memory_in_mb, public_access, url_prefix, environment_variables
     )
 
 @mcp.tool()
 async def run_code_in_session(
     ctx: Context,
+    workspace_id: str,
     session_id: str,
     file_to_run: Optional[str] = None,
     force_setup: bool = False
@@ -375,16 +408,17 @@ async def run_code_in_session(
     Executes code within a sandboxed IDE session and returns the execution status. Use this for testing and debugging code changes.
     </usecase>
     <instructions>
-    - 'session_id' must be an active session ID.
+    You must provide a valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
     - 'file_to_run' is optional - if not provided, runs the default application entry point.
     - 'force_setup' can be used to force re-setup before running if there are environment issues.
     </instructions>
     """
-    return await sessions.run_code_in_session(ctx, session_id, file_to_run, force_setup)
+    return await sessions.run_code_in_session(ctx, workspace_id, session_id, file_to_run, force_setup)
 
 @mcp.tool()
 async def update_session_config(
     ctx: Context,
+    workspace_id: str,
     session_id: str,
     action: sessions.SessionUpdateAction,
     branch_name: Optional[str] = None,
@@ -399,68 +433,68 @@ async def update_session_config(
     Updates session configuration such as git branch, environment variables, or application settings.
     </usecase>
     <instructions>
-    - 'session_id' must be an active session ID.
+    You must provide a valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
     - For 'update_branch', provide 'branch_name' or 'git_reference'.
     - For 'update_variables', provide 'environment_variables' dictionary.
     - For 'update_application', provide 'dockerfile', 'run_entry_point', or 'variables'.
     </instructions>
     """
     return await sessions.update_session_config(
-        ctx, session_id, action, branch_name, git_reference, environment_variables, dockerfile, run_entry_point, variables
+        ctx, workspace_id, session_id, action, branch_name, git_reference, environment_variables, dockerfile, run_entry_point, variables
     )
 
 @mcp.tool()
-async def get_session_application_details(ctx: Context, session_id: str, reference: Optional[str] = None) -> str:
+async def get_session_application_details(ctx: Context, workspace_id: str, session_id: str, reference: Optional[str] = None) -> str:
     """
     <usecase>
     Retrieves detailed application information from an IDE session, including configuration and file structure.
     </usecase>
     <instructions>
-    - 'session_id' must be an active session ID.
+    You must provide a valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
     - 'reference' is optional - specify a git reference to view application at that point.
     </instructions>
     """
-    return await sessions.get_session_application_details(ctx, session_id, reference)
+    return await sessions.get_session_application_details(ctx, workspace_id, session_id, reference)
 
 @mcp.tool()
-async def check_session_git_status(ctx: Context, session_id: str, clean_errors: bool = False) -> str:
+async def check_session_git_status(ctx: Context, workspace_id: str, session_id: str, clean_errors: bool = False) -> str:
     """
     <usecase>
     Checks the git status of a session and optionally cleans any git errors. Useful for debugging git-related issues.
     </usecase>
     <instructions>
-    - 'session_id' must be an active session ID.
+    You must provide a valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
     - 'clean_errors' set to True will attempt to clean any git errors found.
     </instructions>
     """
-    return await sessions.check_session_git_status(ctx, session_id, clean_errors)
+    return await sessions.check_session_git_status(ctx, workspace_id, session_id, clean_errors)
 
 @mcp.tool()
-async def keep_session_alive(ctx: Context, session_id: str) -> str:
+async def keep_session_alive(ctx: Context, workspace_id: str, session_id: str) -> str:
     """
     <usecase>
     Sends a heartbeat to keep an IDE session alive and prevent it from timing out. Useful for long-running development sessions.
     </usecase>
     <instructions>
-    - 'session_id' must be an active session ID.
+    You must provide a valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
     - Use this periodically during long development sessions to prevent automatic session termination.
     </instructions>
     """
-    return await sessions.keep_session_alive(ctx, session_id)
+    return await sessions.keep_session_alive(ctx, workspace_id, session_id)
 
 @mcp.tool()
-async def download_session_code(ctx: Context, session_id: str, reference: Optional[str] = None) -> str:
+async def download_session_code(ctx: Context, workspace_id: str, session_id: str, reference: Optional[str] = None) -> str:
     """
     <usecase>
     Downloads the complete application code from an IDE session as a zip file. Useful for backing up or sharing code.
     </usecase>
     <instructions>
-    - 'session_id' must be an active session ID.
+    You must provide a valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
     - 'reference' is optional - specify a git reference to download code at that point.
     - This returns information about the download, not the actual file content.
     </instructions>
     """
-    return await sessions.download_session_code(ctx, session_id, reference)
+    return await sessions.download_session_code(ctx, workspace_id, session_id, reference)
 
 
 # =========================================
