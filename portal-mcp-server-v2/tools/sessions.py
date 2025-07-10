@@ -6,6 +6,7 @@ allowing an AI assistant to write, run, and debug code within a sandboxed enviro
 """
 
 import os
+import base64
 from typing import Any, Optional, Dict, List
 from enum import Enum
 from mcp.server.fastmcp import Context
@@ -84,6 +85,10 @@ async def _get_git_errors(ctx: Context, workspace_id: str, session_id: str) -> L
 async def _clean_git_errors(ctx: Context, workspace_id: str, session_id: str):
     """Internal helper to clean git errors for a session."""
     return await make_quix_request(ctx, "POST", f"sessions/{session_id}/git/errors/clean", workspace_id=workspace_id)
+
+async def _commit_session_files(ctx: Context, workspace_id: str, session_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Internal helper to commit file changes to a session."""
+    return await make_quix_request(ctx, "POST", f"sessions/{session_id}/commit", workspace_id=workspace_id, json=payload)
 
 # --- High-Level MCP Tools ---
 
@@ -452,3 +457,57 @@ async def download_session_code(ctx: Context, workspace_id: str, session_id: str
     except QuixApiError as e:
         # --- Guided Error Handling ---
         return f"Error downloading code from session '{session_id}'. Please ensure the session ID is correct and the session is active. You can verify the session with `find_sessions()`. Original error: {str(e)}"
+
+async def commit_session_files(
+    ctx: Context,
+    workspace_id: str,
+    session_id: str,
+    file_path: str,
+    content: str,
+    commit_message: Optional[str] = None,
+    action: str = "Update"
+) -> str:
+    """
+    <usecase>
+    Updates the content of a file in an IDE session, or creates one if it doesn't already exist. This allows you to modify code files within the session.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
+    - 'file_path' is the path to the file within the session (e.g., 'main.py', 'src/utils.py')
+    - 'content' is the new file content as a string
+    - 'commit_message' is optional - describes what changes were made
+    - 'action' can be 'Create' for new files or 'Update' for existing files (default: 'Update')
+    </instructions>
+    """
+    try:
+        # Encode content as base64
+        content_base64 = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+        
+        # Prepare the commit payload
+        payload = {
+            "actions": [
+                {
+                    "action": action,
+                    "filePath": file_path,
+                    "content": content_base64
+                }
+            ],
+            "commitMessage": commit_message or f"{action} {file_path}"
+        }
+        
+        result = await _commit_session_files(ctx, workspace_id, session_id, payload)
+        
+        response = f"Successfully {action.lower()}d file '{file_path}' in session '{session_id}'"
+        if result and result.get('reference'):
+            response += f"\n- Commit reference: {result.get('reference')}"
+        if result and result.get('message'):
+            response += f"\n- Commit message: {result.get('message')}"
+        if result and result.get('createdAt'):
+            response += f"\n- Created at: {result.get('createdAt')}"
+        
+        response += f"\n\nYou can now run the updated code with `run_code_in_session(session_id='{session_id}', file_to_run='{file_path}')` or run the default application."
+        return response
+        
+    except QuixApiError as e:
+        # --- Guided Error Handling ---
+        return f"Error committing file '{file_path}' to session '{session_id}'. Please ensure the session ID is correct and the session is active. You can verify the session with `find_sessions()`. Original error: {str(e)}"

@@ -498,6 +498,29 @@ async def download_session_code(ctx: Context, workspace_id: str, session_id: str
     """
     return await sessions.download_session_code(ctx, workspace_id, session_id, reference)
 
+@mcp.tool()
+async def commit_session_files(
+    ctx: Context,
+    workspace_id: str,
+    session_id: str,
+    file_path: str,
+    content: str,
+    commit_message: Optional[str] = None,
+    action: str = "Update"
+) -> str:
+    """
+    <usecase>
+    Updates the content of a file in an IDE session, or creates one if it doesn't already exist. This allows you to modify code files within the session.
+    </usecase>
+    <instructions>
+    You must provide a valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
+    - 'file_path' is the path to the file within the session (e.g., 'main.py', 'src/utils.py')
+    - 'content' is the new file content as a string
+    - 'commit_message' is optional - describes what changes were made
+    - 'action' can be 'Create' for new files or 'Update' for existing files (default: 'Update')
+    </instructions>
+    """
+    return await sessions.commit_session_files(ctx, workspace_id, session_id, file_path, content, commit_message, action)
 
 # =========================================
 # Server Infrastructure
