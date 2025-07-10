@@ -1,28 +1,24 @@
-FROM python:3.12.5-slim-bookworm
-			
-# Set environment variables for non-interactive setup and unbuffered output
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONUNBUFFERED=1 \
-    PYTHONIOENCODING=UTF-8 \
-    PYTHONPATH="/app"
-			
-# Build argument for setting the main app path
-ARG MAINAPPPATH=.
-			
-# Set working directory inside the container
+# Use an official Python runtime as a parent image
+FROM python:3.11-slim
+
+# Set the working directory in the container
 WORKDIR /app
-			
-# Copy requirements to leverage Docker cache
-COPY "${MAINAPPPATH}/requirements.txt" "${MAINAPPPATH}/requirements.txt"
-			
-# Install dependencies without caching
-RUN pip install --no-cache-dir -r "${MAINAPPPATH}/requirements.txt"
-			
-# Copy entire application into container
+
+# Install uv for package management
+RUN pip install uv
+
+# Copy the requirements file into the container
+COPY requirements.txt .
+
+# Install any needed packages specified in requirements.txt
+RUN uv pip install --system --no-cache -r requirements.txt
+
+# Copy the rest of the application code into the container
 COPY . .
-			
-# Set working directory to main app path
-WORKDIR "/app/${MAINAPPPATH}"
-			
-# Define the container's startup command
-ENTRYPOINT ["python3", "main.py","--host", "0.0.0.0", "--port", "80"]
+
+# Make port 80 available to the world outside this container
+EXPOSE 80
+
+# Define the command to run the application.
+# This runs the server using the streamable-http transport.
+CMD ["uv", "run", "python", "server.py"]
