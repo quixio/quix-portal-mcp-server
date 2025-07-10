@@ -26,9 +26,15 @@ settings = QuixSettings()
 mcp = FastMCP(
     name="Quix Topic Schema Inferer",
     instructions=(
-        "This server provides a tool to analyze the data structure of a Kafka topic hosted on the Quix platform. "
-        "When a user asks to understand, define, or infer the schema of a topic, you should use the 'infer_topic_schema' tool. "
-        "You will need to ask the user for their Workspace ID and Topic ID if they are not provided."
+        """
+        <usecase>
+        This server provides a tool to analyze the data structure of a Kafka topic hosted on the Quix platform.
+        </usecase>
+        <instructions>
+        When a user asks to understand, define, or infer the schema of a topic, you should use the 'infer_topic_schema' tool.
+        You will need to ask the user for their Workspace ID and Topic ID if they are not provided.
+        </instructions>
+        """
     ),
     host="0.0.0.0",
     port=80
@@ -57,10 +63,17 @@ async def infer_topic_schema(
     )
 ) -> List[Message]:
     """
-    Use this tool to infer the JSON schema of a Quix topic by analyzing its 100 
-    most recent messages. You must provide the workspace_id and topic_id. 
-    The tool will return the message sample to you, which you should then use 
-    to generate the schema.
+    <usecase>This tool allows you to infer the JSON schema of a Quix topic by analyzing some of its messages</usecase>
+    <instructions>
+    You must provide the workspace_id and topic_id. If the user hasn't given one of both of these details to you, or it looks incorrect,
+    use one of the following tools to provide them with a list of choices.
+    For workspaces: use find_workspaces() to list all workspaces
+    For topics: use find_topics() to list all topic
+    Note that the topic ID uses the pattern {workspaceId} + "-" + "topicName". Example: "demo-myworkspace-myenv-mytopicname"
+    The tool will return the message sample 100 most recent messages to you, which you should then use 
+    to infer the schema.
+    </instructions>
+    
     """
     api_url = f'https://reader-{workspace_id}.demo.quix.io/query-messages'
     headers = {
