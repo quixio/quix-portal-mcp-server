@@ -1,4 +1,4 @@
-name: MCP server
+name: MCP Quix Portal V1
 language: python
 variables:
   - name: QUIX_TOKEN
