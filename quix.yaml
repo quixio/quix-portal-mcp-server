@@ -86,4 +86,23 @@ deployments:
         inputType: Secret
         required: true
         secretKey: API_PAT
+  - name: MCP Quix Portal V2
+    application: portal-mcp-server-v2
+    version: 3aea287434d7b7fcbffeda3714a36f47b4c6273e
+    deploymentType: Service
+    resources:
+      cpu: 200
+      memory: 500
+      replicas: 1
+    publicAccess:
+      enabled: true
+      urlPrefix: portalmcpserverv2-6fee967
+    variables:
+      - name: QUIX_TOKEN
+        inputType: Secret
+        required: true
+        secretKey: API_PAT
+      - name: QUIX_BASE_URL
+        inputType: FreeText
+        value: https://portal-api.demo.quix.io/
 
