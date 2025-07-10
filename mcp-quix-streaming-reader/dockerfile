@@ -21,4 +21,4 @@ EXPOSE 80
 
 # Define the command to run the application.
 # This runs the server using the streamable-http transport.
-CMD ["uv", "run", "python", "server.py"]
+CMD ["uv", "run", "python", "main.py"]
