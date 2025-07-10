@@ -1,7 +1,7 @@
 name: MCP Quix Streaming Reader
 language: python
 variables:
-  - name: QUIX_TOKEN
+  - name: QUIX_PAT_TOKEN
     inputType: Secret
     multiline: false
     defaultValue: API_PAT

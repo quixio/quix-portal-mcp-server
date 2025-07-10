@@ -102,9 +102,9 @@ deployments:
       replicas: 1
     publicAccess:
       enabled: true
-      urlPrefix: mcpquixstreamingreader-15e
+      urlPrefix: mcpquixstreamingreader-6a1
     variables:
-      - name: QUIX_TOKEN
+      - name: QUIX_PAT_TOKEN
         inputType: Secret
         required: true
         secretKey: API_PAT
