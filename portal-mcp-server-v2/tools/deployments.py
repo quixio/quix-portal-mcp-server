@@ -180,48 +180,74 @@ async def manage_deployment(
 async def create_deployment_from_template(
     ctx: Context,
     workspace_id: str,
-    application_id: str,
-    deployment_name: str,
-    replicas: int = 1,
-    cpu_millicores: int = 1000,
-    memory_in_mb: int = 1024
+    library_item_id: str,
+    deployment_name: Optional[str] = None,
+    create_application: bool = True,
+    environment_variables: Optional[Dict[str, str]] = None
 ) -> str:
     """
     <usecase>
-    Creates a deployment from an existing application. Use this to deploy applications that were created from templates or any other applications.
+    Creates a deployment directly from a library item using the POST /library/deployment endpoint. This can optionally create an application too.
     </usecase>
     <instructions>
-    You must provide a valid 'workspace_id' and 'application_id'. If you don't know these IDs, use 'find_workspaces()' and 'find_applications()' first.
-    - 'deployment_name' is required and must be unique in the workspace.
-    - Resource settings (replicas, cpu_millicores, memory_in_mb) are optional and have sensible defaults.
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    - 'library_item_id' can be found using the 'find_in_library' tool.
+    - 'deployment_name' is optional - if not provided, it will auto-generate a name based on the library item.
+    - 'create_application' defaults to True - set to False if you want to deploy without creating an application.
+    - 'environment_variables' can be used to set any required credentials or configurations for the template.
     </instructions>
     """
     try:
-        await ctx.info(f"Creating deployment '{deployment_name}' for application '{application_id}' in workspace '{workspace_id}'...")
+        await ctx.info(f"Creating deployment from library item '{library_item_id}' in workspace '{workspace_id}'...")
         
+        # Create deployment from library item using the correct API endpoint
         payload = {
             "workspaceId": workspace_id,
-            "applicationId": application_id,
-            "name": deployment_name,
-            "replicas": replicas,
-            "cpuMillicores": cpu_millicores,
-            "memoryInMb": memory_in_mb,
+            "libraryItemId": library_item_id,
+            "createApplication": create_application
         }
         
-        deployment = await _create_deployment(ctx, workspace_id, payload)
-        deployment_id = deployment.get('deploymentId')
+        if deployment_name:
+            payload["deploymentName"] = deployment_name
+        if environment_variables:
+            payload["environmentVariables"] = environment_variables
         
-        result = f"Deployment '{deployment_name}' created successfully with ID '{deployment_id}' in workspace '{workspace_id}'.\n"
-        result += f"- Application: {application_id}\n"
-        result += f"- Resources: {cpu_millicores}m CPU, {memory_in_mb}MB RAM, {replicas} replica(s)\n"
+        deployment = await make_quix_request(ctx, "POST", "library/deployment", workspace_id=workspace_id, json=payload)
+        
+        deployment_id = deployment.get('deploymentId')
+        deployment_name_result = deployment.get('name')
+        app_id = deployment.get('applicationId')
+        app_name = deployment.get('applicationName')
+        
+        if not deployment_id:
+            raise QuixApiError("Failed to get new deployment ID after creation.")
+        
+        await ctx.info(f"Deployment '{deployment_name_result}' created with ID '{deployment_id}'.")
+        
+        result = f"Deployment '{deployment_name_result}' created successfully with ID '{deployment_id}' from library item '{library_item_id}' in workspace '{workspace_id}'.\n"
         result += f"- Status: {deployment.get('status')}\n"
+        result += f"- Deployment Type: {deployment.get('deploymentType', 'Service')}\n"
+        result += f"- Resources: {deployment.get('cpuMillicores', 'N/A')}m CPU, {deployment.get('memoryInMb', 'N/A')}MB RAM, {deployment.get('replicas', 'N/A')} replica(s)\n"
+        
+        if create_application and app_id:
+            result += f"- Application Created: '{app_name}' (ID: {app_id})\n"
+        elif app_id:
+            result += f"- Using Existing Application: '{app_name}' (ID: {app_id})\n"
+        
+        if deployment.get('publicAccess'):
+            result += f"- Public Access: {deployment.get('urlPrefix', 'N/A')}\n"
+        
+        variables = deployment.get('variables', {})
+        if variables:
+            result += f"- Variables: {len(variables)} configured\n"
+        
         result += f"\nYou can check its progress with `get_deployment_details(workspace_id='{workspace_id}', deployment_id='{deployment_id}')` or view logs with `get_deployment_logs(deployment_id='{deployment_id}')`."
         
         return result
 
     except QuixApiError as e:
         # --- Guided Error Handling ---
-        return f"Error creating deployment from application '{application_id}' in workspace '{workspace_id}'. Please ensure the application ID is correct and the deployment name is unique. You can verify the application ID with `find_applications(workspace_id='{workspace_id}')`. Original error: {str(e)}"
+        return f"Error creating deployment from library item '{library_item_id}' in workspace '{workspace_id}'. Please ensure the library item ID is correct and the deployment name (if provided) is unique. You can find valid library item IDs with `find_in_library(workspace_id='{workspace_id}', ...)`. Original error: {str(e)}"
 
 async def get_deployment_logs(ctx: Context, deployment_id: str, replica_id: Optional[str] = None, log_type: str = "current") -> str:
     try:

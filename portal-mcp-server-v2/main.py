@@ -195,50 +195,52 @@ async def find_in_library(ctx: Context, workspace_id: str, search_term: str, ite
 async def create_app_from_template(
     ctx: Context,
     workspace_id: str,
-    template_id: str, 
-    application_name: str,
-    input_topic: Optional[str] = None,
-    output_topic: Optional[str] = None,
+    library_item_id: str, 
+    application_name: Optional[str] = None,
+    path: Optional[str] = None,
+    placeholders: Optional[Dict[str, str]] = None,
     environment_variables: Optional[Dict[str, str]] = None
 ) -> str:
     """
     <usecase>
-    Creates an application from a library template. Use this to create an application based on a pre-built template from the Quix Library.
+    Creates an application from a library item using the POST /library/application endpoint. Use this to create an application based on a pre-built template from the Quix Library.
     </usecase>
     <instructions>
     You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
-    - 'template_id' can be found using the 'find_in_library' tool.
-    - 'application_name' is required and must be unique in the workspace.
-    - Provide 'input_topic' and 'output_topic' if the template requires them.
+    - 'library_item_id' can be found using the 'find_in_library' tool.
+    - 'application_name' is optional - if not provided, it will auto-generate a name based on the library item.
+    - 'path' is optional - specify a custom path for the application.
+    - 'placeholders' can be used for template placeholders (key-value pairs).
     - 'environment_variables' can be used to set any required credentials or configurations for the template.
     </instructions>
     """
     return await applications.create_app_from_template(
-        ctx, workspace_id, template_id, application_name, input_topic, output_topic, environment_variables
+        ctx, workspace_id, library_item_id, application_name, path, placeholders, environment_variables
     )
 
 @mcp.tool()
 async def create_deployment_from_template(
     ctx: Context,
     workspace_id: str,
-    application_id: str,
-    deployment_name: str,
-    replicas: int = 1,
-    cpu_millicores: int = 1000,
-    memory_in_mb: int = 1024
+    library_item_id: str,
+    deployment_name: Optional[str] = None,
+    create_application: bool = True,
+    environment_variables: Optional[Dict[str, str]] = None
 ) -> str:
     """
     <usecase>
-    Creates a deployment from an existing application. Use this to deploy applications that were created from templates or any other applications.
+    Creates a deployment directly from a library item using the POST /library/deployment endpoint. This can optionally create an application too.
     </usecase>
     <instructions>
-    You must provide a valid 'workspace_id' and 'application_id'. If you don't know these IDs, use 'find_workspaces()' and 'find_applications()' first.
-    - 'deployment_name' is required and must be unique in the workspace.
-    - Resource settings (replicas, cpu_millicores, memory_in_mb) are optional and have sensible defaults.
+    You must provide a valid 'workspace_id'. If you don't know the workspace ID, use 'find_workspaces()' first to list all available workspaces and their IDs.
+    - 'library_item_id' can be found using the 'find_in_library' tool.
+    - 'deployment_name' is optional - if not provided, it will auto-generate a name based on the library item.
+    - 'create_application' defaults to True - set to False if you want to deploy without creating an application.
+    - 'environment_variables' can be used to set any required credentials or configurations for the template.
     </instructions>
     """
     return await deployments.create_deployment_from_template(
-        ctx, workspace_id, application_id, deployment_name, replicas, cpu_millicores, memory_in_mb
+        ctx, workspace_id, library_item_id, deployment_name, create_application, environment_variables
     )
 
 # =========================================
