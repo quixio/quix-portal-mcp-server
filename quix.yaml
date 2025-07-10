@@ -92,4 +92,17 @@ deployments:
       - name: QUIX_WORKSPACE
         inputType: FreeText
         value: demo-solarfarmdatageneratordemo-prod
+  - name: MCP Quix Streaming Reader
+    application: mcp-quix-streaming-reader
+    version: latest
+    deploymentType: Service
+    resources:
+      cpu: 200
+      memory: 500
+      replicas: 1
+    variables:
+      - name: QUIX_PAT_TOKEN
+        inputType: Secret
+        required: true
+        secretKey: API_PAT
 
