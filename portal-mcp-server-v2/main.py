@@ -552,6 +552,50 @@ async def commit_session_files(
     """
     return await sessions.commit_session_files(ctx, workspace_id, session_id, file_path, content, commit_message, action)
 
+@mcp.tool()
+async def explore_session_codebase(ctx: Context, workspace_id: str, session_id: str, reference: Optional[str] = None) -> str:
+    """
+    <usecase>
+    Explores the complete codebase structure of an IDE session. Use this when you need to understand the project layout, find specific files, or get an overview of the application architecture.
+    </usecase>
+    <instructions>
+    You must provide valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
+    - 'reference' is optional - specify a git reference to explore code from that point.
+    - Returns organized file structure with key files highlighted and next actions suggested.
+    </instructions>
+    """
+    return await sessions.explore_session_codebase(ctx, workspace_id, session_id, reference)
+
+@mcp.tool()
+async def read_session_file(ctx: Context, workspace_id: str, session_id: str, file_path: str, reference: Optional[str] = None) -> str:
+    """
+    <usecase>
+    Reads and displays the content of a specific file in an IDE session. Use this to examine code, configuration, or any text-based files when you need to understand or debug the application.
+    </usecase>
+    <instructions>
+    You must provide valid 'workspace_id', 'session_id', and 'file_path'. Use 'find_workspaces()', 'find_sessions()', and 'explore_session_codebase()' to get these details.
+    - 'reference' is optional - specify a git reference to read from that point.
+    - Returns formatted content with syntax highlighting and editing suggestions.
+    </instructions>
+    """
+    return await sessions.read_session_file(ctx, workspace_id, session_id, file_path, reference)
+
+@mcp.tool()
+async def work_with_session_files(ctx: Context, workspace_id: str, session_id: str, action: str, file_path: str, content: Optional[str] = None) -> str:
+    """
+    <usecase>
+    Performs file operations in an IDE session - create, update, or delete files. Use this when you need to modify code, add new files, or remove unwanted files as part of development workflow.
+    </usecase>
+    <instructions>
+    You must provide valid 'workspace_id', 'session_id', 'action', and 'file_path'. Use 'find_workspaces()' and 'find_sessions()' to get IDs.
+    - 'action' must be one of: 'create', 'update', 'delete'
+    - 'content' is required for 'create' and 'update' actions
+    - 'file_path' is the path to the file within the session (e.g., 'main.py', 'src/utils.py')
+    - For safety, delete operations will ask for confirmation in error handling
+    </instructions>
+    """
+    return await sessions.work_with_session_files(ctx, workspace_id, session_id, action, file_path, content)
+
 # =========================================
 # Server Infrastructure
 # =========================================

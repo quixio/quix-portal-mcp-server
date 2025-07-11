@@ -92,6 +92,46 @@ async def _commit_session_files(ctx: Context, workspace_id: str, session_id: str
     """Internal helper to commit file changes to a session."""
     return await make_quix_request(ctx, "POST", f"sessions/{session_id}/commit", workspace_id=workspace_id, json=payload)
 
+async def _get_session_files(ctx: Context, workspace_id: str, session_id: str, reference: Optional[str] = None) -> List[str]:
+    """Internal helper to get list of files in a session."""
+    params = {}
+    if reference:
+        params["reference"] = reference
+    return await make_quix_request(ctx, "GET", f"sessions/{session_id}/files", workspace_id=workspace_id, params=params)
+
+async def _get_session_folders(ctx: Context, workspace_id: str, session_id: str, reference: Optional[str] = None, hide_application_folders: bool = False, hide_existing_included_folders: bool = False) -> List[str]:
+    """Internal helper to get list of folders in a session."""
+    params = {}
+    if reference:
+        params["reference"] = reference
+    if hide_application_folders:
+        params["hideApplicationFolders"] = "true"
+    if hide_existing_included_folders:
+        params["hideExistingIncludedFolders"] = "true"
+    return await make_quix_request(ctx, "GET", f"sessions/{session_id}/folders", workspace_id=workspace_id, params=params)
+
+async def _get_session_files_with_metadata(ctx: Context, workspace_id: str, session_id: str, reference: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Internal helper to get files with metadata in a session."""
+    params = {}
+    if reference:
+        params["reference"] = reference
+    return await make_quix_request(ctx, "GET", f"sessions/{session_id}/files-with-metadata", workspace_id=workspace_id, params=params)
+
+async def _get_session_file_content(ctx: Context, workspace_id: str, session_id: str, file_path: str, reference: Optional[str] = None) -> str:
+    """Internal helper to get content of a specific file in a session."""
+    params = {}
+    if reference:
+        params["reference"] = reference
+    return await make_quix_request(ctx, "GET", f"sessions/{session_id}/files/{file_path}", workspace_id=workspace_id, params=params)
+
+async def _update_session_file(ctx: Context, workspace_id: str, session_id: str, file_path: str, content: str) -> Dict[str, Any]:
+    """Internal helper to update or create a file in a session."""
+    return await make_quix_request(ctx, "POST", f"sessions/{session_id}/files/{file_path}", workspace_id=workspace_id, data=content, headers={"Content-Type": "text/plain"})
+
+async def _delete_session_file(ctx: Context, workspace_id: str, session_id: str, file_path: str) -> Dict[str, Any]:
+    """Internal helper to delete a file from a session."""
+    return await make_quix_request(ctx, "DELETE", f"sessions/{session_id}/files/{file_path}", workspace_id=workspace_id)
+
 # --- High-Level MCP Tools ---
 
 async def find_sessions(ctx: Context, workspace_id: str) -> str:
@@ -547,3 +587,234 @@ async def commit_session_files(
     except QuixApiError as e:
         # --- Guided Error Handling ---
         return f"Error committing file '{file_path}' to session '{session_id}'. Please ensure the session ID is correct and the session is active. You can verify the session with `find_sessions()`. Original error: {str(e)}"
+
+async def explore_session_codebase(ctx: Context, workspace_id: str, session_id: str, reference: Optional[str] = None) -> str:
+    """
+    <usecase>
+    Explores the complete codebase structure of an IDE session. Use this when you need to understand the project layout, find specific files, or get an overview of the application architecture.
+    </usecase>
+    <instructions>
+    You must provide valid 'workspace_id' and 'session_id'. Use 'find_workspaces()' and 'find_sessions()' to get these IDs.
+    - 'reference' is optional - specify a git reference to explore code from that point.
+    - Returns organized file structure with key files highlighted and next actions suggested.
+    </instructions>
+    """
+    try:
+        # Get both files and folders to provide complete picture
+        files = await _get_session_files(ctx, workspace_id, session_id, reference)
+        folders = await _get_session_folders(ctx, workspace_id, session_id, reference, hide_application_folders=False, hide_existing_included_folders=False)
+        files_with_metadata = await _get_session_files_with_metadata(ctx, workspace_id, session_id, reference)
+        
+        if not files and not folders:
+            return f"Session '{session_id}' appears to be empty or not properly initialized. Try running `run_code_in_session(session_id='{session_id}', force_setup=True)` to initialize the session."
+        
+        result = f"Codebase Overview for Session '{session_id}'"
+        if reference:
+            result += f" (reference: {reference})"
+        result += ":\n\n"
+        
+        # Organize files by type and importance
+        code_files = []
+        config_files = []
+        data_files = []
+        other_files = []
+        main_app_files = []
+        
+        # Create metadata lookup
+        metadata_lookup = {f.get('path', ''): f for f in files_with_metadata} if files_with_metadata else {}
+        
+        for file_path in sorted(files):
+            file_meta = metadata_lookup.get(file_path, {})
+            if file_meta.get('isMainApp', False):
+                main_app_files.append(file_path)
+            elif file_path.endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.rb', '.php')):
+                code_files.append(file_path)
+            elif file_path.endswith(('.json', '.yml', '.yaml', '.xml', '.toml', '.ini', '.cfg', '.conf', 'Dockerfile', 'requirements.txt', 'package.json')):
+                config_files.append(file_path)
+            elif file_path.endswith(('.csv', '.txt', '.md', '.log')):
+                data_files.append(file_path)
+            else:
+                other_files.append(file_path)
+        
+        # Display organized structure
+        if main_app_files:
+            result += "🎯 **Main Application Files:**\n"
+            for file_path in main_app_files:
+                size = metadata_lookup.get(file_path, {}).get('byteSize', 0)
+                result += f"  • {file_path} ({size} bytes)\n"
+            result += "\n"
+        
+        if folders:
+            result += "📁 **Directory Structure:**\n"
+            for folder in sorted(folders)[:10]:  # Show first 10 folders
+                result += f"  • {folder}/\n"
+            if len(folders) > 10:
+                result += f"  ... and {len(folders) - 10} more folders\n"
+            result += "\n"
+        
+        if code_files:
+            result += "💻 **Code Files:**\n"
+            for file_path in code_files[:8]:  # Show first 8 code files
+                size = metadata_lookup.get(file_path, {}).get('byteSize', 0)
+                result += f"  • {file_path} ({size} bytes)\n"
+            if len(code_files) > 8:
+                result += f"  ... and {len(code_files) - 8} more code files\n"
+            result += "\n"
+        
+        if config_files:
+            result += "⚙️ **Configuration Files:**\n"
+            for file_path in config_files[:5]:
+                size = metadata_lookup.get(file_path, {}).get('byteSize', 0)
+                result += f"  • {file_path} ({size} bytes)\n"
+            if len(config_files) > 5:
+                result += f"  ... and {len(config_files) - 5} more config files\n"
+            result += "\n"
+        
+        # Summary and next actions
+        result += f"**Summary:** {len(files)} files in {len(folders)} folders\n\n"
+        
+        result += "**Next Actions:**\n"
+        if main_app_files:
+            result += f"• To examine the main application: `read_session_file(session_id='{session_id}', file_path='{main_app_files[0]}')`\n"
+        if code_files:
+            result += f"• To view any code file: `read_session_file(session_id='{session_id}', file_path='...')`\n"
+        if config_files:
+            result += f"• To check configuration: `read_session_file(session_id='{session_id}', file_path='{config_files[0]}')`\n"
+        result += f"• To run the application: `run_code_in_session(session_id='{session_id}')`\n"
+        result += f"• To work with specific files: `work_with_session_files(session_id='{session_id}', action='...')`\n"
+        
+        return result
+    except QuixApiError as e:
+        return f"Error exploring codebase in session '{session_id}'. Please ensure the session ID is correct and active. You can verify with `find_sessions()`. Original error: {str(e)}"
+
+async def read_session_file(ctx: Context, workspace_id: str, session_id: str, file_path: str, reference: Optional[str] = None) -> str:
+    """
+    <usecase>
+    Reads and displays the content of a specific file in an IDE session. Use this to examine code, configuration, or any text-based files when you need to understand or debug the application.
+    </usecase>
+    <instructions>
+    You must provide valid 'workspace_id', 'session_id', and 'file_path'. Use 'find_workspaces()', 'find_sessions()', and 'explore_session_codebase()' to get these details.
+    - 'reference' is optional - specify a git reference to read from that point.
+    - Returns formatted content with syntax highlighting and editing suggestions.
+    </instructions>
+    """
+    try:
+        # Get file content and metadata
+        content = await _get_session_file_content(ctx, workspace_id, session_id, file_path, reference)
+        files_with_metadata = await _get_session_files_with_metadata(ctx, workspace_id, session_id, reference)
+        
+        if not content:
+            return f"File '{file_path}' in session '{session_id}' is empty or not found. Use `explore_session_codebase(session_id='{session_id}')` to see available files."
+        
+        # Get file metadata
+        file_meta = next((f for f in files_with_metadata if f.get('path') == file_path), {}) if files_with_metadata else {}
+        
+        result = f"📄 **File: {file_path}**"
+        if reference:
+            result += f" (reference: {reference})"
+        result += "\n\n"
+        
+        # Add metadata if available
+        if file_meta:
+            size = file_meta.get('byteSize', 0)
+            mime_type = file_meta.get('mimeType', 'Unknown')
+            is_binary = file_meta.get('isBinary', False)
+            is_main_app = file_meta.get('isMainApp', False)
+            
+            result += f"**File Info:** {size} bytes | {mime_type}"
+            if is_main_app:
+                result += " | 🎯 Main Application File"
+            if is_binary:
+                result += " | ⚠️ Binary File"
+            result += "\n\n"
+            
+            if is_binary:
+                result += "**Note:** This is a binary file. Content display may not be meaningful.\n\n"
+        
+        # Display content with syntax highlighting
+        result += "**Content:**\n"
+        result += "```\n"
+        result += content
+        result += "\n```\n\n"
+        
+        # Suggest next actions based on file type
+        result += "**Next Actions:**\n"
+        result += f"• To modify this file: `work_with_session_files(session_id='{session_id}', action='update', file_path='{file_path}', content='...')`\n"
+        if file_path.endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.rb', '.php')):
+            result += f"• To run this file: `run_code_in_session(session_id='{session_id}', file_to_run='{file_path}')`\n"
+        result += f"• To explore more files: `explore_session_codebase(session_id='{session_id}')`\n"
+        result += f"• To commit changes: `commit_session_files(session_id='{session_id}', file_path='{file_path}', ...)`\n"
+        
+        return result
+    except QuixApiError as e:
+        return f"Error reading file '{file_path}' in session '{session_id}'. Please ensure the session ID and file path are correct. You can explore available files with `explore_session_codebase()`. Original error: {str(e)}"
+
+async def work_with_session_files(ctx: Context, workspace_id: str, session_id: str, action: str, file_path: str, content: Optional[str] = None) -> str:
+    """
+    <usecase>
+    Performs file operations in an IDE session - create, update, or delete files. Use this when you need to modify code, add new files, or remove unwanted files as part of development workflow.
+    </usecase>
+    <instructions>
+    You must provide valid 'workspace_id', 'session_id', 'action', and 'file_path'. Use 'find_workspaces()' and 'find_sessions()' to get IDs.
+    - 'action' must be one of: 'create', 'update', 'delete'
+    - 'content' is required for 'create' and 'update' actions
+    - 'file_path' is the path to the file within the session (e.g., 'main.py', 'src/utils.py')
+    - For safety, delete operations will ask for confirmation in error handling
+    </instructions>
+    """
+    try:
+        if action.lower() in ['create', 'update']:
+            if not content:
+                return f"Error: 'content' is required for '{action}' action. Please provide the file content as a string."
+            
+            # Use the direct file update API for immediate changes
+            result = await _update_session_file(ctx, workspace_id, session_id, file_path, content)
+            
+            action_word = "created" if action.lower() == 'create' else "updated"
+            response = f"✅ Successfully {action_word} file '{file_path}' in session '{session_id}'"
+            
+            if result:
+                if result.get('reference'):
+                    response += f"\n📝 Commit reference: {result.get('reference')}"
+                if result.get('message'):
+                    response += f"\n💬 Commit message: {result.get('message')}"
+                if result.get('createdAt'):
+                    response += f"\n🕐 Created at: {result.get('createdAt')}"
+            
+            response += f"\n\n**Next Actions:**\n"
+            response += f"• To view the {action_word} file: `read_session_file(session_id='{session_id}', file_path='{file_path}')`\n"
+            if file_path.endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.rb', '.php')):
+                response += f"• To run this file: `run_code_in_session(session_id='{session_id}', file_to_run='{file_path}')`\n"
+            response += f"• To run the application: `run_code_in_session(session_id='{session_id}')`\n"
+            response += f"• To explore the codebase: `explore_session_codebase(session_id='{session_id}')`\n"
+            
+            return response
+            
+        elif action.lower() == 'delete':
+            result = await _delete_session_file(ctx, workspace_id, session_id, file_path)
+            
+            response = f"🗑️ Successfully deleted file '{file_path}' from session '{session_id}'"
+            
+            if result:
+                if result.get('reference'):
+                    response += f"\n📝 Commit reference: {result.get('reference')}"
+                if result.get('message'):
+                    response += f"\n💬 Commit message: {result.get('message')}"
+                if result.get('createdAt'):
+                    response += f"\n🕐 Created at: {result.get('createdAt')}"
+            
+            response += f"\n\n⚠️ **Warning:** This action cannot be undone. The file has been permanently removed from the session."
+            response += f"\n\n**Next Actions:**\n"
+            response += f"• To see remaining files: `explore_session_codebase(session_id='{session_id}')`\n"
+            response += f"• To run the application: `run_code_in_session(session_id='{session_id}')`\n"
+            
+            return response
+            
+        else:
+            return f"Error: Invalid action '{action}'. Valid actions are: 'create', 'update', 'delete'. Use 'create' for new files, 'update' for existing files, or 'delete' to remove files."
+            
+    except QuixApiError as e:
+        if action.lower() == 'delete':
+            return f"Error deleting file '{file_path}' from session '{session_id}'. Please ensure the session ID and file path are correct. **Safety Note:** Delete operations are permanent and cannot be undone. You can verify files with `explore_session_codebase()`. Original error: {str(e)}"
+        else:
+            return f"Error {action}ing file '{file_path}' in session '{session_id}'. Please ensure the session ID is correct and the session is active. You can verify with `find_sessions()`. Original error: {str(e)}"
