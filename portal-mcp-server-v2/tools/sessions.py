@@ -251,6 +251,36 @@ async def manage_session(
             if public_access and url_prefix:
                 payload["urlPrefix"] = url_prefix
             if environment_variables:
+                # Validate environment variables against application variable definitions
+                from .applications import _get_application
+                app_details = await _get_application(ctx, workspace_id, application_id)
+                app_variables = app_details.get('variables', []) if app_details else []
+                
+                # Create lookup of application variables by name with their types
+                app_var_types = {var.get('name'): var.get('inputType') for var in app_variables}
+                
+                # Check that all required application variables are provided  
+                required_vars = [var.get('name') for var in app_variables if var.get('required')]
+                missing_required = [var for var in required_vars if var not in environment_variables]
+                if missing_required:
+                    return f"Error: Missing required variables: {', '.join(missing_required)}. These variables are required by the application."
+                
+                # Validate that session variables match application variable types
+                for var_name, var_value in environment_variables.items():
+                    if var_name in app_var_types:
+                        expected_type = app_var_types[var_name]
+                        
+                        # Check if this should be a secret but is being set as plain text
+                        if expected_type == 'Secret':
+                            sensitive_keywords = ['password', 'secret', 'token', 'key', 'credential', 'auth', 'api_key']
+                            if any(keyword in var_name.lower() for keyword in sensitive_keywords):
+                                # This is likely a secret variable - warn if value looks like plaintext
+                                if len(var_value) > 50 or any(char in var_value for char in [' ', '!', '@', '#', '$']) and var_value != var_name:
+                                    return f"Error: Variable '{var_name}' is defined as type 'Secret' in the application but you're setting what appears to be a plaintext value. For secrets, set the value to the secret name (e.g., '{var_name}'), not the actual secret value."
+                    else:
+                        # Warn about variables not defined in the application
+                        return f"Warning: Variable '{var_name}' is not defined in the application. This may cause runtime issues."
+                
                 payload["environmentVariables"] = environment_variables
             
             session = await _create_session(ctx, workspace_id, payload)
@@ -364,6 +394,43 @@ async def update_session_config(
         elif action == SessionUpdateAction.update_variables:
             if not environment_variables:
                 return "Error: 'environment_variables' is required for variable update."
+            
+            # Get session details to find the application ID for validation
+            session_details = await _get_session(ctx, workspace_id, session_id)
+            application_id = session_details.get('applicationId')
+            
+            if application_id:
+                # Get application variable definitions
+                from .applications import _get_application
+                app_details = await _get_application(ctx, workspace_id, application_id)
+                app_variables = app_details.get('variables', []) if app_details else []
+                
+                # Create lookup of application variables by name with their types
+                app_var_types = {var.get('name'): var.get('inputType') for var in app_variables}
+                
+                # Check that all required application variables are provided
+                required_vars = [var.get('name') for var in app_variables if var.get('required')]
+                missing_required = [var for var in required_vars if var not in environment_variables]
+                if missing_required:
+                    return f"Error: Missing required variables: {', '.join(missing_required)}. These variables are required by the application."
+                
+                # Validate that session variables match application variable types
+                for var_name, var_value in environment_variables.items():
+                    if var_name in app_var_types:
+                        expected_type = app_var_types[var_name]
+                        
+                        # Check if this should be a secret but is being set as plain text
+                        if expected_type == 'Secret':
+                            # For secrets, the session variable value should reference the secret name,
+                            # not contain the actual secret value (unless it's the same as the name)
+                            sensitive_keywords = ['password', 'secret', 'token', 'key', 'credential', 'auth', 'api_key']
+                            if any(keyword in var_name.lower() for keyword in sensitive_keywords):
+                                # This is likely a secret variable - warn if value looks like plaintext
+                                if len(var_value) > 50 or any(char in var_value for char in [' ', '!', '@', '#', '$']) and var_value != var_name:
+                                    return f"Error: Variable '{var_name}' is defined as type 'Secret' in the application but you're setting what appears to be a plaintext value. For secrets, set the value to the secret name (e.g., '{var_name}'), not the actual secret value."
+                    else:
+                        # Warn about variables not defined in the application
+                        return f"Warning: Variable '{var_name}' is not defined in the application. This may cause runtime issues."
             
             payload = {"environmentVariables": environment_variables}
             await _update_session(ctx, workspace_id, session_id, payload)

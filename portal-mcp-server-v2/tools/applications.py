@@ -269,7 +269,8 @@ async def update_application_variables(
     workspace_id: str,
     application_id: str, 
     variables: List[Dict[str, Any]],
-    append: bool = True
+    append: bool = True,
+    preserve_types: bool = True
 ) -> str:
     """
     <usecase>
@@ -289,6 +290,10 @@ async def update_application_variables(
     - 'append': Whether to append these variables to existing ones (True) or replace them all (False).
         When append=True (default), existing variables are preserved and new ones are added.
         When append=False, only the provided variables will be kept (all others will be removed).
+    - 'preserve_types': Whether to preserve existing variable types when updating (True by default).
+        When preserve_types=True, if a variable already exists and you don't specify inputType, 
+        the existing type is preserved. This prevents accidental type changes that could break applications.
+        Set to False only if you explicitly want to change variable types.
     </instructions>
     """
     try:
@@ -309,10 +314,34 @@ async def update_application_variables(
             if "required" not in var:
                 return f"Error: Missing 'required' field in variable '{var.get('name')}'"
         
+        # Validate that sensitive variables MUST be secrets
+        sensitive_keywords = ['password', 'secret', 'token', 'key', 'credential', 'auth', 'api_key']
+        
+        for var in variables:
+            var_name_lower = var.get('name', '').lower()
+            
+            # Check if variable name suggests it should be a secret
+            if any(keyword in var_name_lower for keyword in sensitive_keywords):
+                if var.get('inputType') != 'Secret':
+                    return f"Error: Variable '{var.get('name')}' contains sensitive data and MUST have inputType: 'Secret'. Current type: '{var.get('inputType')}'. The application will fail without proper secret configuration."
+        
         # Get the current application details
         current_app = await _get_application(ctx, workspace_id, application_id)
         if not current_app:
             return f"No application found with ID {application_id}."
+        
+        # Apply type preservation if enabled
+        preserved_types = []
+        if preserve_types:
+            existing_variables = current_app.get('variables', [])
+            existing_types = {var.get('name'): var.get('inputType') for var in existing_variables}
+            
+            # For each variable being updated, preserve existing type if not explicitly specified
+            for var in variables:
+                var_name = var.get('name')
+                if var_name in existing_types and 'inputType' not in var:
+                    var['inputType'] = existing_types[var_name]
+                    preserved_types.append(f"'{var_name}' (preserved as {existing_types[var_name]})")
         
         # Determine the final set of variables to apply
         final_variables = []
@@ -362,6 +391,10 @@ async def update_application_variables(
                 result += f"  Multiline: {var.get('multiline')}\n"
                 
             result += "\n"
+        
+        # Show type preservation info if any types were preserved
+        if preserved_types:
+            result += f"Type Preservation: {', '.join(preserved_types)}\n\n"
         
         # Show total count
         result += f"Total environment variables: {len(final_variables)}"

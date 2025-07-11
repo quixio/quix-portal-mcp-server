@@ -111,7 +111,8 @@ async def update_application_variables(
     workspace_id: str,
     application_id: str, 
     variables: List[Dict[str, Any]],
-    append: bool = True
+    append: bool = True,
+    preserve_types: bool = True
 ) -> str:
     """
     <usecase>
@@ -131,9 +132,13 @@ async def update_application_variables(
     - 'append': Whether to append these variables to existing ones (True) or replace them all (False).
         When append=True (default), existing variables are preserved and new ones are added.
         When append=False, only the provided variables will be kept (all others will be removed).
+    - 'preserve_types': Whether to preserve existing variable types when updating (True by default).
+        When preserve_types=True, if a variable already exists and you don't specify inputType, 
+        the existing type is preserved. This prevents accidental type changes that could break applications.
+        Set to False only if you explicitly want to change variable types.
     </instructions>
     """
-    return await applications.update_application_variables(ctx, workspace_id, application_id, variables, append)
+    return await applications.update_application_variables(ctx, workspace_id, application_id, variables, append, preserve_types)
 
 
 # =========================================
