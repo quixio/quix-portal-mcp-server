@@ -26,28 +26,6 @@ deployments:
         inputType: FreeText
         required: true
         value: 111
-  - name: Quix Portal MCP server
-    application: mcp-server
-    version: latest
-    deploymentType: Service
-    resources:
-      cpu: 200
-      memory: 500
-      replicas: 1
-    publicAccess:
-      enabled: true
-      urlPrefix: quix-unified-mcpserver
-    variables:
-      - name: QUIX_TOKEN
-        inputType: Secret
-        required: true
-        secretKey: API_PAT
-      - name: QUIX_BASE_URL
-        inputType: FreeText
-        value: https://portal-api.demo.quix.io/
-      - name: QUIX_WORKSPACE
-        inputType: FreeText
-        value: demo-webinarsolarfarm-btestv2
   - name: MCP Quix Streaming Reader
     application: mcp-quix-streaming-reader
     version: latest
