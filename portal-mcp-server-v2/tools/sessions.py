@@ -265,23 +265,29 @@ async def manage_session(
                 if missing_required:
                     return f"Error: Missing required variables: {', '.join(missing_required)}. These variables are required by the application."
                 
+                # Separate regular environment variables from secrets
+                regular_env_vars = {}
+                secret_keys = {}
+                
                 # Validate that session variables match application variable types
                 for var_name, var_value in environment_variables.items():
                     if var_name in app_var_types:
                         expected_type = app_var_types[var_name]
                         
-                        # Check if this should be a secret but is being set as plain text
+                        # If this is a secret variable, put it in secretKeys field
                         if expected_type == 'Secret':
-                            sensitive_keywords = ['password', 'secret', 'token', 'key', 'credential', 'auth', 'api_key']
-                            if any(keyword in var_name.lower() for keyword in sensitive_keywords):
-                                # This is likely a secret variable - warn if value looks like plaintext
-                                if len(var_value) > 50 or any(char in var_value for char in [' ', '!', '@', '#', '$']) and var_value != var_name:
-                                    return f"Error: Variable '{var_name}' is defined as type 'Secret' in the application but you're setting what appears to be a plaintext value. For secrets, set the value to the secret name (e.g., '{var_name}'), not the actual secret value."
+                            secret_keys[var_name] = var_value
+                        else:
+                            regular_env_vars[var_name] = var_value
                     else:
-                        # Warn about variables not defined in the application
-                        return f"Warning: Variable '{var_name}' is not defined in the application. This may cause runtime issues."
+                        # Variables not defined in application go to regular env vars
+                        regular_env_vars[var_name] = var_value
                 
-                payload["environmentVariables"] = environment_variables
+                # Set both fields in payload
+                if regular_env_vars:
+                    payload["environmentVariables"] = regular_env_vars
+                if secret_keys:
+                    payload["secretKeys"] = secret_keys
             
             session = await _create_session(ctx, workspace_id, payload)
             new_session_id = session.get('sessionId')
@@ -414,25 +420,30 @@ async def update_session_config(
                 if missing_required:
                     return f"Error: Missing required variables: {', '.join(missing_required)}. These variables are required by the application."
                 
+                # Separate regular environment variables from secrets
+                regular_env_vars = {}
+                secret_keys = {}
+                
                 # Validate that session variables match application variable types
                 for var_name, var_value in environment_variables.items():
                     if var_name in app_var_types:
                         expected_type = app_var_types[var_name]
                         
-                        # Check if this should be a secret but is being set as plain text
+                        # If this is a secret variable, put it in secretKeys field
                         if expected_type == 'Secret':
-                            # For secrets, the session variable value should reference the secret name,
-                            # not contain the actual secret value (unless it's the same as the name)
-                            sensitive_keywords = ['password', 'secret', 'token', 'key', 'credential', 'auth', 'api_key']
-                            if any(keyword in var_name.lower() for keyword in sensitive_keywords):
-                                # This is likely a secret variable - warn if value looks like plaintext
-                                if len(var_value) > 50 or any(char in var_value for char in [' ', '!', '@', '#', '$']) and var_value != var_name:
-                                    return f"Error: Variable '{var_name}' is defined as type 'Secret' in the application but you're setting what appears to be a plaintext value. For secrets, set the value to the secret name (e.g., '{var_name}'), not the actual secret value."
+                            secret_keys[var_name] = var_value
+                        else:
+                            regular_env_vars[var_name] = var_value
                     else:
-                        # Warn about variables not defined in the application
-                        return f"Warning: Variable '{var_name}' is not defined in the application. This may cause runtime issues."
+                        # Variables not defined in application go to regular env vars
+                        regular_env_vars[var_name] = var_value
             
-            payload = {"environmentVariables": environment_variables}
+            # Create payload with proper field separation
+            payload = {}
+            if regular_env_vars:
+                payload["environmentVariables"] = regular_env_vars
+            if secret_keys:
+                payload["secretKeys"] = secret_keys
             await _update_session(ctx, workspace_id, session_id, payload)
             return f"Session '{session_id}' environment variables updated successfully."
         
