@@ -401,6 +401,10 @@ async def update_session_config(
             if not environment_variables:
                 return "Error: 'environment_variables' is required for variable update."
             
+            # Initialize variables for secret separation
+            regular_env_vars = {}
+            secret_keys = {}
+            
             # Get session details to find the application ID for validation
             session_details = await _get_session(ctx, workspace_id, session_id)
             application_id = session_details.get('applicationId')
@@ -420,10 +424,6 @@ async def update_session_config(
                 if missing_required:
                     return f"Error: Missing required variables: {', '.join(missing_required)}. These variables are required by the application."
                 
-                # Separate regular environment variables from secrets
-                regular_env_vars = {}
-                secret_keys = {}
-                
                 # Validate that session variables match application variable types
                 for var_name, var_value in environment_variables.items():
                     if var_name in app_var_types:
@@ -437,6 +437,10 @@ async def update_session_config(
                     else:
                         # Variables not defined in application go to regular env vars
                         regular_env_vars[var_name] = var_value
+            else:
+                # If no application context, treat all variables as regular env vars
+                # (though this should be rare for IDE sessions)
+                regular_env_vars = environment_variables.copy()
             
             # Create payload with proper field separation
             payload = {}
